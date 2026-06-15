@@ -12,32 +12,26 @@ struct WorkoutListView: View {
         NavigationStack {
             Group {
                 if viewModel.isLoading && viewModel.workouts.isEmpty {
-                    ProgressView("Loading workouts…")
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemGroupedBackground))
                 } else if viewModel.workouts.isEmpty {
-                    ContentUnavailableView(
-                        "No Workouts Found",
-                        systemImage: "figure.run.circle",
-                        description: Text("Complete a GPS workout on your Apple Watch to see it here.")
-                    )
+                    emptyState
                 } else {
-                    List(viewModel.workouts) { session in
-                        NavigationLink {
-                            WorkoutDetailView(session: session, healthKitService: healthKitService)
-                        } label: {
-                            WorkoutRowView(session: session)
-                        }
-                    }
-                    .listStyle(.insetGrouped)
+                    workoutList
                 }
             }
             .navigationTitle("Workouts")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if viewModel.isLoading {
-                        ProgressView().scaleEffect(0.8)
+                        ProgressView().scaleEffect(0.75)
                     } else {
-                        Button { Task { await viewModel.loadWorkouts() } } label: {
+                        Button {
+                            Task { await viewModel.loadWorkouts() }
+                        } label: {
                             Image(systemName: "arrow.clockwise")
+                                .fontWeight(.semibold)
                         }
                     }
                 }
@@ -53,41 +47,176 @@ struct WorkoutListView: View {
         }
         .task { await viewModel.loadWorkouts() }
     }
+
+    private var workoutList: some View {
+        ScrollView {
+            LazyVStack(spacing: 10) {
+                summaryHeader
+                ForEach(viewModel.workouts) { session in
+                    NavigationLink {
+                        WorkoutDetailView(session: session, healthKitService: healthKitService)
+                    } label: {
+                        WorkoutCard(session: session)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    private var summaryHeader: some View {
+        HStack(spacing: 0) {
+            SummaryTile(
+                value: "\(viewModel.workouts.count)",
+                label: "Workouts",
+                icon: "flame.fill",
+                color: .orange
+            )
+            Divider().frame(height: 32)
+            SummaryTile(
+                value: totalDistance,
+                label: "Total km",
+                icon: "location.fill",
+                color: .blue
+            )
+        }
+        .padding(.vertical, 12)
+        .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 8, y: 2)
+        .padding(.top, 4)
+    }
+
+    private var totalDistance: String {
+        let km = viewModel.workouts.compactMap(\.totalDistance).reduce(0, +) / 1000
+        return String(format: "%.0f", km)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "figure.run.circle")
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+            Text("No Workouts Found")
+                .font(.title3.bold())
+            Text("Complete a GPS workout on your Apple Watch\nto see it here.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+    }
 }
 
-private struct WorkoutRowView: View {
+// MARK: - Workout Card
+
+private struct WorkoutCard: View {
     let session: WorkoutSession
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        f.timeStyle = .short
-        return f
-    }()
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: session.workoutTypeIcon)
-                .font(.title2)
-                .foregroundStyle(.red)
-                .frame(width: 40, height: 40)
-                .background(.red.opacity(0.12), in: Circle())
+        VStack(spacing: 0) {
+            // Header row
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .fill(typeColor.gradient)
+                        .frame(width: 48, height: 48)
+                    Image(systemName: session.workoutTypeIcon)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(session.workoutType)
-                    .font(.headline)
-                Text(Self.dateFormatter.string(from: session.startDate))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(session.workoutType)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(session.startDate.formatted(date: .abbreviated, time: .shortened))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(16)
+
+            Divider().padding(.horizontal, 16)
+
+            // Stats row
+            HStack(spacing: 0) {
+                if let dist = session.formattedDistance {
+                    StatCell(value: dist, label: "Distance", icon: "location.fill", color: .blue)
+                }
+                StatCell(value: session.formattedDuration, label: "Duration", icon: "clock.fill", color: .orange)
+                if let cal = session.formattedCalories {
+                    StatCell(value: cal, label: "Calories", icon: "flame.fill", color: .red)
+                }
+            }
+            .padding(.vertical, 12)
+        }
+        .background(.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 10, y: 3)
+    }
+
+    private var typeColor: Color {
+        switch session.workoutType {
+        case "Running":  return .orange
+        case "Cycling":  return .blue
+        case "Hiking":   return .green
+        case "Walking":  return .teal
+        case "Swimming": return .cyan
+        default:         return .red
+        }
+    }
+}
+
+private struct StatCell: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(color)
+            Text(value)
+                .font(.system(.subheadline, design: .rounded).bold())
+                .foregroundStyle(.primary)
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct SummaryTile: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(color)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.system(.title2, design: .rounded).bold())
+                Text(label)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                HStack(spacing: 16) {
-                    Label(session.formattedDuration, systemImage: "clock")
-                    if let dist = session.formattedDistance {
-                        Label(dist, systemImage: "location")
-                    }
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
     }
 }
