@@ -11,6 +11,7 @@ struct WorkoutSession: Identifiable, Codable {
     let duration: TimeInterval
     let totalDistance: Double?      // meters
     let totalEnergyBurned: Double?  // kcal
+    let usesPace: Bool              // true for foot-based workouts (run/walk/hike) → show min/km instead of km/h
     var route: WorkoutRoute?
     var metrics: WorkoutMetrics?
 
@@ -43,6 +44,7 @@ extension WorkoutSession {
         self.duration = workout.duration
         self.totalDistance = workout.totalDistance?.doubleValue(for: .meter())
         self.totalEnergyBurned = workout.totalEnergyBurned?.doubleValue(for: .kilocalorie())
+        self.usesPace = workout.workoutActivityType.usesPaceMetric
         self.route = nil
         self.metrics = nil
     }
@@ -68,6 +70,13 @@ extension HKWorkoutActivityType {
         case .hiking:   return "figure.hiking"
         case .swimming: return "figure.pool.swim"
         default:        return "heart.fill"
+        }
+    }
+
+    var usesPaceMetric: Bool {
+        switch self {
+        case .running, .walking, .hiking: return true
+        default: return false
         }
     }
 }

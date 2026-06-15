@@ -13,6 +13,10 @@ struct AnimatedMapView: UIViewRepresentable {
         map.showsUserLocation = false
         map.showsCompass = true
         map.showsScale = true
+        map.register(
+            CurrentPositionAnnotationView.self,
+            forAnnotationViewWithReuseIdentifier: CurrentPositionAnnotationView.reuseID
+        )
         return map
     }
 
@@ -40,6 +44,10 @@ struct AnimatedMapView: UIViewRepresentable {
         private var lastLineWidth: CGFloat?
         private var hasFramed = false
 
+        // Live position dot
+        private let positionAnnotation = CurrentPositionAnnotation()
+        private var positionAnnotationAdded = false
+
         init(viewModel: WorkoutDetailViewModel) {
             self.viewModel = viewModel
             super.init()
@@ -51,6 +59,7 @@ struct AnimatedMapView: UIViewRepresentable {
                     guard let self, let map = self.mapView else { return }
                     self.revealSegments(on: map, upTo: index)
                     self.updateCamera(on: map)
+                    self.updatePositionAnnotation(on: map)
                 }
                 .store(in: &cancellables)
         }
@@ -100,6 +109,18 @@ struct AnimatedMapView: UIViewRepresentable {
                 map.setRegion(route.boundingRegion, animated: false)
                 hasFramed = true
             }
+
+            updatePositionAnnotation(on: map)
+        }
+
+        private func updatePositionAnnotation(on map: MKMapView) {
+            guard let coord = viewModel.animator.currentCoordinate,
+                  CLLocationCoordinate2DIsValid(coord) else { return }
+            positionAnnotation.coordinate = coord
+            if !positionAnnotationAdded {
+                map.addAnnotation(positionAnnotation)
+                positionAnnotationAdded = true
+            }
         }
 
         private func revealSegments(on map: MKMapView, upTo index: Int) {
@@ -133,7 +154,11 @@ struct AnimatedMapView: UIViewRepresentable {
                 pitch: viewModel.is3DMode ? CGFloat(viewModel.pitch) : 0,
                 heading: viewModel.animator.currentHeading
             )
-            map.setCamera(camera, animated: viewModel.animator.isPlaying)
+            // While playing we tick at ~30 fps; animating each setCamera call queues
+            // ~0.25 s animations that lag behind the dot. Snap instead so the camera
+            // stays centered on the position. Animate only for user-driven changes
+            // (scrubbing, settings).
+            map.setCamera(camera, animated: !viewModel.animator.isPlaying)
         }
 
         // MARK: - MKMapViewDelegate
@@ -151,5 +176,58 @@ struct AnimatedMapView: UIViewRepresentable {
             renderer.lineJoin = .round
             return renderer
         }
+
+        func mapView(_ map: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            guard annotation is CurrentPositionAnnotation else { return nil }
+            return map.dequeueReusableAnnotationView(
+                withIdentifier: CurrentPositionAnnotationView.reuseID,
+                for: annotation
+            )
+        }
+    }
+}
+
+// MARK: - Current Position Annotation
+
+private final class CurrentPositionAnnotation: NSObject, MKAnnotation {
+    // KVO-compliant via manual willChange/didChange so the map view animates updates.
+    private var _coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+    @objc dynamic var coordinate: CLLocationCoordinate2D {
+        get { _coordinate }
+        set {
+            willChangeValue(forKey: "coordinate")
+            _coordinate = newValue
+            didChangeValue(forKey: "coordinate")
+        }
+    }
+}
+
+private final class CurrentPositionAnnotationView: MKAnnotationView {
+    static let reuseID = "currentPositionDot"
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        configure()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configure()
+    }
+
+    private func configure() {
+        frame = CGRect(x: 0, y: 0, width: 18, height: 18)
+        backgroundColor = .systemRed
+        layer.cornerRadius = 9
+        layer.borderColor = UIColor.white.cgColor
+        layer.borderWidth = 2.5
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.35
+        layer.shadowRadius = 4
+        layer.shadowOffset = .zero
+        canShowCallout = false
+        isUserInteractionEnabled = false
+        // Render above polyline overlays.
+        layer.zPosition = 1000
     }
 }

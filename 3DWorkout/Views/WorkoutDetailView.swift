@@ -18,17 +18,13 @@ struct WorkoutDetailView: View {
     var body: some View {
         Group {
             if viewModel.isLoading {
-                VStack(spacing: 16) {
-                    ProgressView()
-                    Text("Loading route…")
-                        .foregroundStyle(.secondary)
-                }
+                loadingState
             } else if viewModel.route != nil {
                 MapContainerView(viewModel: viewModel)
                     .ignoresSafeArea(edges: .bottom)
             } else if let error = viewModel.errorMessage {
                 ContentUnavailableView(
-                    "Failed to Load",
+                    "Load Failed",
                     systemImage: "exclamationmark.triangle",
                     description: Text(error)
                 )
@@ -36,19 +32,25 @@ struct WorkoutDetailView: View {
                 ContentUnavailableView(
                     "No GPS Route",
                     systemImage: "location.slash",
-                    description: Text("This workout doesn't have GPS route data.")
+                    description: Text("This workout doesn't have GPS route data recorded by Apple Watch.")
                 )
             }
         }
         .navigationTitle(session.workoutType)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
-                    viewModel.is3DMode.toggle()
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        viewModel.is3DMode.toggle()
+                    }
                 } label: {
-                    Label(viewModel.is3DMode ? "2D" : "3D",
-                          systemImage: viewModel.is3DMode ? "square.3layers.3d.slash" : "square.3layers.3d")
+                    Label(
+                        viewModel.is3DMode ? "Switch to 2D" : "Switch to 3D",
+                        systemImage: viewModel.is3DMode ? "square.2layers.3d" : "square.3layers.3d"
+                    )
+                    .labelStyle(.iconOnly)
                 }
                 .disabled(viewModel.route == nil)
 
@@ -64,5 +66,23 @@ struct WorkoutDetailView: View {
             CustomizationView(viewModel: viewModel)
         }
         .task { await viewModel.load() }
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(.red.opacity(0.1))
+                    .frame(width: 80, height: 80)
+                ProgressView()
+                    .scaleEffect(1.4)
+                    .tint(.red)
+            }
+            Text("Loading route…")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
     }
 }

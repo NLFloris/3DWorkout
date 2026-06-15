@@ -16,7 +16,7 @@ struct ThreeDWorkoutApp: App {
                         .environmentObject(healthKitService)
                 }
             }
-            .onAppear { healthKitService.refreshStatus() }
+            .task { await healthKitService.refreshStatus() }
         }
     }
 }

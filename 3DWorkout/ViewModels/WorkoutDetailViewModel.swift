@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit
 import MapKit
+import Combine
 
 enum GradientMetric: String, CaseIterable, Identifiable, Codable {
     case pace, heartRate, elevation, speed, solid
@@ -61,11 +62,17 @@ final class WorkoutDetailViewModel: ObservableObject {
 
     private var cachedColors: (metric: GradientMetric, colors: [UIColor])?
     private let healthKitService: HealthKitService
+    private var cancellables = Set<AnyCancellable>()
 
     init(session: WorkoutSession, healthKitService: HealthKitService) {
         self.session = session
         self.healthKitService = healthKitService
         animator.animationSpeed = animationSpeed
+        // Forward animator changes (isPlaying, currentPointIndex, progress) so
+        // SwiftUI views observing this view model re-render on every tick.
+        animator.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     var computedSegmentColors: [UIColor] {

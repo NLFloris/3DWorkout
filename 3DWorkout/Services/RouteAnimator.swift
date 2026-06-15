@@ -8,6 +8,8 @@ enum AnimationSpeed: Double, CaseIterable, Identifiable, Codable {
     case fourX = 4
     case eightX = 8
     case sixteenX = 16
+    case thirtyTwoX = 32
+    case sixtyFourX = 64
 
     var id: Double { rawValue }
     var displayName: String { "\(Int(rawValue))×" }

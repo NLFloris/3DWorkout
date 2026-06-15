@@ -31,7 +31,7 @@ final class HealthKitService: ObservableObject {
             authorizationStatus = .denied
             return
         }
-        refreshStatus()
+        Task { await refreshStatus() }
     }
 
     func requestAuthorization() async throws {
@@ -40,16 +40,25 @@ final class HealthKitService: ObservableObject {
             return
         }
         try await store.requestAuthorization(toShare: [], read: readTypes)
-        refreshStatus()
+        await refreshStatus()
     }
 
-    func refreshStatus() {
-        let status = store.authorizationStatus(for: HKObjectType.workoutType())
-        switch status {
-        case .sharingAuthorized: authorizationStatus = .authorized
-        case .sharingDenied:     authorizationStatus = .denied
-        case .notDetermined:     authorizationStatus = .notDetermined
-        @unknown default:        authorizationStatus = .notDetermined
+    // HealthKit intentionally does not expose read-permission status to apps.
+    // `authorizationStatus(for:)` only reflects share/write permission, so for a
+    // read-only app it always reports `.sharingDenied`. Instead, ask whether a
+    // request is still needed; once the user has been prompted we assume access
+    // and let actual queries return empty results if read was denied.
+    func refreshStatus() async {
+        do {
+            let status = try await store.statusForAuthorizationRequest(toShare: [], read: readTypes)
+            switch status {
+            case .shouldRequest: authorizationStatus = .notDetermined
+            case .unnecessary:   authorizationStatus = .authorized
+            case .unknown:       authorizationStatus = .notDetermined
+            @unknown default:    authorizationStatus = .notDetermined
+            }
+        } catch {
+            authorizationStatus = .notDetermined
         }
     }
 

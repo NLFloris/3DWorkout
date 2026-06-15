@@ -3,97 +3,88 @@ import SwiftUI
 struct MetricsOverlayView: View {
     @ObservedObject var viewModel: WorkoutDetailViewModel
 
-    private var currentMetrics: LiveMetrics {
-        guard let route = viewModel.route else { return .empty }
+    private var live: LiveMetrics {
+        guard let route = viewModel.route, !route.points.isEmpty else { return .empty }
         let idx = min(viewModel.animator.currentPointIndex, route.points.count - 1)
-        let point = route.points[idx]
-        let elapsed = point.cumulativeDistance
-        let hr = viewModel.metrics?.heartRate(at: point.timestamp)
+        let pt = route.points[idx]
         return LiveMetrics(
-            heartRate: hr,
-            elevation: point.altitude,
-            speed: point.speed,
-            distance: elapsed
+            heartRate: viewModel.metrics?.heartRate(at: pt.timestamp),
+            elevation: pt.altitude,
+            speed: pt.speed,
+            distance: pt.cumulativeDistance
         )
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            MetricTile(
-                value: currentMetrics.heartRate.map { "\(Int($0))" } ?? "--",
-                unit: "bpm",
-                icon: "heart.fill",
-                color: .red
-            )
-            Divider().frame(height: 36)
-            MetricTile(
-                value: currentMetrics.formattedSpeed,
-                unit: "km/h",
-                icon: "speedometer",
-                color: .blue
-            )
-            Divider().frame(height: 36)
-            MetricTile(
-                value: currentMetrics.formattedElevation,
-                unit: "m",
-                icon: "arrow.up.right",
-                color: .green
-            )
-            Divider().frame(height: 36)
-            MetricTile(
-                value: currentMetrics.formattedDistance,
-                unit: "km",
-                icon: "location.fill",
-                color: .orange
-            )
+        HStack(spacing: 14) {
+            MetricPill(icon: "heart.fill",    color: .red,    value: live.hrString,   unit: "bpm")
+            divider
+            if viewModel.session.usesPace {
+                MetricPill(icon: "stopwatch.fill", color: .blue, value: live.paceString, unit: "/km")
+            } else {
+                MetricPill(icon: "speedometer", color: .blue, value: live.kmhString, unit: "km/h")
+            }
+            divider
+            MetricPill(icon: "location.fill", color: .orange, value: live.distString, unit: "km")
+            divider
+            MetricPill(icon: "mountain.2.fill", color: .green, value: live.elevString, unit: "m")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.15), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(.secondary.opacity(0.3))
+            .frame(width: 0.5, height: 22)
+    }
+}
+
+private struct MetricPill: View {
+    let icon: String
+    let color: Color
+    let value: String
+    let unit: String
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(color)
+            Text(value)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .monospacedDigit()
+            Text(unit)
+                .font(.system(size: 8, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 38)
     }
 }
 
 private struct LiveMetrics {
     var heartRate: Double? = nil
     var elevation: Double? = nil
-    var speed: Double? = nil    // m/s
-    var distance: Double? = nil // meters
+    var speed: Double? = nil     // m/s
+    var distance: Double? = nil  // meters
 
     static let empty = LiveMetrics()
 
-    var formattedSpeed: String {
-        guard let s = speed else { return "--" }
-        return String(format: "%.1f", s * 3.6)
-    }
+    var hrString:   String { heartRate.map { "\(Int($0))" } ?? "--" }
+    var kmhString:  String { speed.map { String(format: "%.1f", $0 * 3.6) } ?? "--" }
+    var distString: String { distance.map { String(format: "%.2f", $0 / 1000) } ?? "--" }
+    var elevString: String { elevation.map { "\(Int($0))" } ?? "--" }
 
-    var formattedElevation: String {
-        guard let e = elevation else { return "--" }
-        return "\(Int(e))"
-    }
-
-    var formattedDistance: String {
-        guard let d = distance else { return "--" }
-        return String(format: "%.2f", d / 1000)
-    }
-}
-
-private struct MetricTile: View {
-    let value: String
-    let unit: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Image(systemName: icon)
-                .font(.caption2)
-                .foregroundStyle(color)
-            Text(value)
-                .font(.system(.callout, design: .monospaced).bold())
-            Text(unit)
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
+    // Pace in min:sec per km. Below ~0.4 m/s (≈1.5 km/h) treat as stopped.
+    var paceString: String {
+        guard let s = speed, s > 0.4 else { return "--" }
+        let secPerKm = 1000.0 / s
+        guard secPerKm.isFinite, secPerKm < 60 * 60 else { return "--" }
+        let m = Int(secPerKm) / 60
+        let sec = Int(secPerKm) % 60
+        return String(format: "%d:%02d", m, sec)
     }
 }
