@@ -87,6 +87,11 @@ struct HeatmapMapView: UIViewRepresentable {
                 map.setRegion(bounds, animated: false)
                 hasFocused = true
             }
+            // Seed the view model with the current region so an export can
+            // happen even before the user pans.
+            if hasFocused, let map = mapView {
+                viewModel?.currentMapRegion = map.region
+            }
         }
 
         // MARK: - Overlay sync
@@ -152,6 +157,12 @@ struct HeatmapMapView: UIViewRepresentable {
         }
 
         // MARK: - Delegate
+
+        // Mirror the visible region back to the view model so the export
+        // sheet can render whatever the user is currently framing.
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            viewModel?.currentMapRegion = mapView.region
+        }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             guard let polyline = overlay as? MKPolyline else {

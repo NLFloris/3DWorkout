@@ -20,6 +20,8 @@ struct HeatmapTabView: View {
         )
     }
 
+    @State private var showExport = false
+
     var body: some View {
         // No NavigationStack — the heatmap is a single full-bleed surface, and
         // a nav bar would otherwise reserve a white strip above the safe area.
@@ -30,13 +32,31 @@ struct HeatmapTabView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 8) {
-                HeatmapFilterBar(viewModel: viewModel)
+                HStack(alignment: .top, spacing: 8) {
+                    HeatmapFilterBar(viewModel: viewModel)
+                    Spacer(minLength: 0)
+                    Button {
+                        showExport = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .accessibilityLabel("Export heatmap")
+                    .disabled(viewModel.tracks.isEmpty)
+                }
                 if indexer.isRunning {
                     IndexingStrip(indexer: indexer)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.top, 6)
+        }
+        .sheet(isPresented: $showExport) {
+            HeatmapExportView(viewModel: viewModel)
+                .environmentObject(settings)
         }
         .task {
             // Give the tab-switch animation + first MapView layout a frame
