@@ -2,38 +2,35 @@
 
   <defs>
 
-    <!-- iOS squircle clip (≈22.5% corner radius) -->
+    <!-- iOS squircle clip -->
     <clipPath id="sq">
       <rect width="1024" height="1024" rx="230"/>
     </clipPath>
 
-    <!-- Route gradient: warm orange at start (SW) → vivid red at north peak -->
-    <linearGradient id="rg" gradientUnits="userSpaceOnUse"
-                    x1="255" y1="835" x2="680" y2="185">
-      <stop offset="0%"   stop-color="#FF9A3C"/>
-      <stop offset="48%"  stop-color="#FF4020"/>
-      <stop offset="100%" stop-color="#D50016"/>
+    <!-- Trail gradient: warm amber at trailhead (bottom) → vivid red at summit (top) -->
+    <linearGradient id="tg" gradientUnits="userSpaceOnUse"
+                    x1="512" y1="870" x2="512" y2="260">
+      <stop offset="0%"   stop-color="#FFB832"/>
+      <stop offset="45%"  stop-color="#FF5020"/>
+      <stop offset="100%" stop-color="#D20012"/>
     </linearGradient>
 
-    <!-- Background: dark navy with subtle warm centre -->
-    <radialGradient id="bg" cx="50%" cy="66%" r="72%">
-      <stop offset="0%"   stop-color="#1C0E0A"/>
-      <stop offset="52%"  stop-color="#0D1022"/>
-      <stop offset="100%" stop-color="#07090E"/>
+    <!-- Dark forest-green background -->
+    <radialGradient id="bg" cx="50%" cy="55%" r="72%">
+      <stop offset="0%"   stop-color="#142018"/>
+      <stop offset="55%"  stop-color="#0C1610"/>
+      <stop offset="100%" stop-color="#070D08"/>
     </radialGradient>
 
-    <!-- Glow filters – progressively tighter -->
-    <filter id="b64" x="-55%" y="-55%" width="210%" height="210%">
-      <feGaussianBlur stdDeviation="64"/>
+    <!-- Glow filters -->
+    <filter id="b62" x="-55%" y="-55%" width="210%" height="210%">
+      <feGaussianBlur stdDeviation="62"/>
     </filter>
     <filter id="b24" x="-32%" y="-32%" width="164%" height="164%">
       <feGaussianBlur stdDeviation="24"/>
     </filter>
     <filter id="b10" x="-16%" y="-16%" width="132%" height="132%">
       <feGaussianBlur stdDeviation="10"/>
-    </filter>
-    <filter id="b5"  x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur stdDeviation="5"/>
     </filter>
 
   </defs>
@@ -43,120 +40,123 @@
     <!-- ── Background ── -->
     <rect width="1024" height="1024" fill="url(#bg)"/>
 
-    <!-- Ambient warm under-glow (subtle) -->
-    <ellipse cx="512" cy="690" rx="510" ry="350" fill="#FF2000" fill-opacity="0.055"/>
-
-    <!-- ── Perspective grid ──
-         Very faint horizontal lines that imply a tilted map plane.
-         Lines are full-width but opacity is kept minimal so they
-         read as texture rather than literal grid. -->
-    <g stroke="#FFFFFF" stroke-width="1" fill="none">
-      <line x1="50"  y1="275" x2="974" y2="275" stroke-opacity="0.028"/>
-      <line x1="20"  y1="388" x2="1004" y2="388" stroke-opacity="0.034"/>
-      <line x1="4"   y1="512" x2="1020" y2="512" stroke-opacity="0.038"/>
-      <line x1="0"   y1="642" x2="1024" y2="642" stroke-opacity="0.034"/>
-      <line x1="0"   y1="772" x2="1024" y2="772" stroke-opacity="0.026"/>
+    <!-- Very faint topographic contour ellipses suggesting terrain -->
+    <g fill="none" stroke="#2E5A34" stroke-width="1">
+      <ellipse cx="512" cy="510" rx="165" ry="110" stroke-opacity="0.18"/>
+      <ellipse cx="512" cy="510" rx="275" ry="195" stroke-opacity="0.12"/>
+      <ellipse cx="512" cy="510" rx="388" ry="285" stroke-opacity="0.08"/>
+      <ellipse cx="512" cy="510" rx="495" ry="375" stroke-opacity="0.05"/>
     </g>
 
-    <!-- ── GPS Route ──
-         A running loop: start SW → up the west → NW → north peak →
-         NE → east side → SE → bottom → back to SW.
+    <!-- Subtle warm ambient glow at bottom (trailhead) -->
+    <ellipse cx="340" cy="860" rx="220" ry="120" fill="#FF8020" fill-opacity="0.07"/>
+    <!-- Subtle cool glow at top (summit) -->
+    <ellipse cx="690" cy="260" rx="160" ry="90" fill="#FF2010" fill-opacity="0.08"/>
 
-         Path segments (8 cubic béziers + close):
-           Seg 1 → (178,488)   west mid
-           Seg 2 → (370,232)   NW turn
-           Seg 3 → (664,206)   north peak
-           Seg 4 → (836,332)   NE
-           Seg 5 → (870,550)   east mid
-           Seg 6 → (760,744)   SE
-           Seg 7 → (592,828)   lower right
-           Seg 8 → (255,835)   back to start
+    <!-- ── Switchback Trail ──
+         5 traverses with 4 hairpin turns.
+
+         Traverses (left↔right zigzag going up):
+           T1: (155, 860) → right  → (855, 820)   trailhead stretch
+           HP-R1                    → (855, 694)   tight right hairpin
+           T2: (855, 694) → left   → (155, 694)
+           HP-L1                    → (155, 568)   tight left hairpin
+           T3: (155, 568) → right  → (855, 555)
+           HP-R2                    → (855, 430)   tight right hairpin
+           T4: (855, 430) → left   → (155, 430)
+           HP-L2                    → (155, 305)   tight left hairpin
+           T5: (155, 305) → right  → (855, 272)   summit approach (angled up)
     -->
 
-    <!-- Glow 1 – outer bloom (widest, softest) -->
-    <path fill="none" stroke="#FF5018" stroke-width="8" stroke-opacity="0.42"
-          filter="url(#b64)"
-          d="M 255,835
-             C 178,742 156,610 178,488
-             C 198,376 264,280 370,232
-             C 462,190 574,180 664,206
-             C 736,226 796,268 836,332
-             C 874,392 884,470 870,550
-             C 858,620 820,692 760,744
-             C 714,782 658,810 592,828
-             C 514,848 390,862 255,835 Z"/>
+    <!-- Outer bloom layer -->
+    <path fill="none" stroke="#FF7828" stroke-width="8" stroke-opacity="0.38"
+          stroke-linecap="round" stroke-linejoin="round"
+          filter="url(#b62)"
+          d="M 155,860
+             C 370,848 640,830 855,820
+             C 948,820 948,694 855,694
+             C 625,690 380,687 155,694
+             C 62,694 62,568 155,568
+             C 378,562 635,553 855,555
+             C 948,555 948,430 855,430
+             C 622,426 378,422 155,430
+             C 62,430 62,305 155,305
+             C 378,298 642,288 855,272"/>
 
-    <!-- Glow 2 – medium bloom -->
-    <path fill="none" stroke="url(#rg)" stroke-width="38" stroke-opacity="0.42"
+    <!-- Medium glow -->
+    <path fill="none" stroke="url(#tg)" stroke-width="38" stroke-opacity="0.38"
+          stroke-linecap="round" stroke-linejoin="round"
           filter="url(#b24)"
-          d="M 255,835
-             C 178,742 156,610 178,488
-             C 198,376 264,280 370,232
-             C 462,190 574,180 664,206
-             C 736,226 796,268 836,332
-             C 874,392 884,470 870,550
-             C 858,620 820,692 760,744
-             C 714,782 658,810 592,828
-             C 514,848 390,862 255,835 Z"/>
+          d="M 155,860
+             C 370,848 640,830 855,820
+             C 948,820 948,694 855,694
+             C 625,690 380,687 155,694
+             C 62,694 62,568 155,568
+             C 378,562 635,553 855,555
+             C 948,555 948,430 855,430
+             C 622,426 378,422 155,430
+             C 62,430 62,305 155,305
+             C 378,298 642,288 855,272"/>
 
-    <!-- Glow 3 – tight inner glow -->
-    <path fill="none" stroke="url(#rg)" stroke-width="22" stroke-opacity="0.62"
+    <!-- Tight inner glow -->
+    <path fill="none" stroke="url(#tg)" stroke-width="22" stroke-opacity="0.58"
+          stroke-linecap="round" stroke-linejoin="round"
           filter="url(#b10)"
-          d="M 255,835
-             C 178,742 156,610 178,488
-             C 198,376 264,280 370,232
-             C 462,190 574,180 664,206
-             C 736,226 796,268 836,332
-             C 874,392 884,470 870,550
-             C 858,620 820,692 760,744
-             C 714,782 658,810 592,828
-             C 514,848 390,862 255,835 Z"/>
+          d="M 155,860
+             C 370,848 640,830 855,820
+             C 948,820 948,694 855,694
+             C 625,690 380,687 155,694
+             C 62,694 62,568 155,568
+             C 378,562 635,553 855,555
+             C 948,555 948,430 855,430
+             C 622,426 378,422 155,430
+             C 62,430 62,305 155,305
+             C 378,298 642,288 855,272"/>
 
-    <!-- Main crisp route line -->
-    <path fill="none" stroke="url(#rg)" stroke-width="15"
-          stroke-linejoin="round" stroke-linecap="round"
-          d="M 255,835
-             C 178,742 156,610 178,488
-             C 198,376 264,280 370,232
-             C 462,190 574,180 664,206
-             C 736,226 796,268 836,332
-             C 874,392 884,470 870,550
-             C 858,620 820,692 760,744
-             C 714,782 658,810 592,828
-             C 514,848 390,862 255,835 Z"/>
+    <!-- Crisp main trail line -->
+    <path fill="none" stroke="url(#tg)" stroke-width="15"
+          stroke-linecap="round" stroke-linejoin="round"
+          d="M 155,860
+             C 370,848 640,830 855,820
+             C 948,820 948,694 855,694
+             C 625,690 380,687 155,694
+             C 62,694 62,568 155,568
+             C 378,562 635,553 855,555
+             C 948,555 948,430 855,430
+             C 622,426 378,422 155,430
+             C 62,430 62,305 155,305
+             C 378,298 642,288 855,272"/>
 
-    <!-- ── GPS Waypoint Dots ──
-         Each has a blurred halo ring + a solid core. -->
+    <!-- ── Hairpin apex dots ──
+         Placed at the outermost point of each tight turn. -->
 
-    <!-- West mid  (≈ seg 1 midpoint) -->
-    <circle cx="160" cy="512" r="26" fill="#FF7C30" fill-opacity="0.20" filter="url(#b10)"/>
-    <circle cx="160" cy="512" r="10" fill="#FF7C30"/>
+    <!-- HP-R1 apex: x ≈ 940, y ≈ 757 -->
+    <circle cx="940" cy="757" r="24" fill="#FF8830" fill-opacity="0.20" filter="url(#b10)"/>
+    <circle cx="940" cy="757" r="10" fill="#FF8830"/>
 
-    <!-- NW bend  (≈ seg 2 midpoint) -->
-    <circle cx="268" cy="332" r="24" fill="#FF8A32" fill-opacity="0.20" filter="url(#b10)"/>
-    <circle cx="268" cy="332" r="9"  fill="#FF8A32"/>
+    <!-- HP-L1 apex: x ≈ 68, y ≈ 631 -->
+    <circle cx="68" cy="631" r="24" fill="#FF8030" fill-opacity="0.20" filter="url(#b10)"/>
+    <circle cx="68" cy="631" r="10" fill="#FF8030"/>
 
-    <!-- North peak  (≈ seg 3 end) -->
-    <circle cx="598" cy="186" r="28" fill="#FF9A3C" fill-opacity="0.24" filter="url(#b10)"/>
-    <circle cx="598" cy="186" r="11" fill="#FF9A3C"/>
+    <!-- HP-R2 apex: x ≈ 940, y ≈ 492 -->
+    <circle cx="940" cy="492" r="24" fill="#FF5820" fill-opacity="0.20" filter="url(#b10)"/>
+    <circle cx="940" cy="492" r="10" fill="#FF5820"/>
 
-    <!-- East mid  (≈ seg 5 start) -->
-    <circle cx="878" cy="448" r="24" fill="#FF4820" fill-opacity="0.20" filter="url(#b10)"/>
-    <circle cx="878" cy="448" r="9"  fill="#FF4820"/>
+    <!-- HP-L2 apex: x ≈ 68, y ≈ 367 -->
+    <circle cx="68" cy="367" r="24" fill="#FF4820" fill-opacity="0.20" filter="url(#b10)"/>
+    <circle cx="68" cy="367" r="10" fill="#FF4820"/>
 
-    <!-- SE corner  (≈ seg 6 end) -->
-    <circle cx="762" cy="744" r="24" fill="#E8001C" fill-opacity="0.20" filter="url(#b10)"/>
-    <circle cx="762" cy="744" r="9"  fill="#E8001C"/>
+    <!-- ── Trailhead marker (start) ──
+         Bottom-left: (155, 860) -->
+    <circle cx="155" cy="860" r="48" fill="#FFB832" fill-opacity="0.13" filter="url(#b10)"/>
+    <circle cx="155" cy="860" r="23" fill="#FFB832"/>
+    <circle cx="155" cy="860" r="10" fill="white" fill-opacity="0.95"/>
 
-    <!-- ── Start / Finish Marker ──
-         Larger concentric rings at the route origin (255, 835). -->
-
-    <!-- Outermost glow ring -->
-    <circle cx="255" cy="835" r="50" fill="#FF8030" fill-opacity="0.12" filter="url(#b10)"/>
-    <!-- Orange filled circle -->
-    <circle cx="255" cy="835" r="24" fill="#FF8030"/>
-    <!-- White centre dot -->
-    <circle cx="255" cy="835" r="10" fill="white" fill-opacity="0.96"/>
+    <!-- ── Summit marker (end) ──
+         Top-right: (855, 272) — larger, distinct red ring -->
+    <circle cx="855" cy="272" r="42" fill="#D20012" fill-opacity="0.18" filter="url(#b10)"/>
+    <circle cx="855" cy="272" r="20" fill="#E8001C"/>
+    <circle cx="855" cy="272" r="8"  fill="white" fill-opacity="0.95"/>
 
   </g>
 
