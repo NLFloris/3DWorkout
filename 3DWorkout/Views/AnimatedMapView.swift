@@ -192,6 +192,25 @@ struct AnimatedMapView: UIViewRepresentable {
                 let target = map.convert(coord, toPointTo: map)
                 view.layer.removeAllAnimations()
                 UIView.performWithoutAnimation { view.center = target }
+                forceMarkerOnTop(view: view, in: map)
+            }
+        }
+
+        /// In 3D pitch mode MapKit's overlay layer can end up rendering above
+        /// the annotation container layer, which leaves the playback dot
+        /// trapped behind the polyline head. Brute force the dot to the top
+        /// by walking up the view hierarchy and bringing every ancestor up to
+        /// (but not including) the map view itself to the front, plus pinning
+        /// the dot's own layer to a very high `zPosition`.
+        private func forceMarkerOnTop(view: UIView, in map: MKMapView) {
+            view.layer.zPosition = 999_999
+            var current: UIView = view
+            while let parent = current.superview, parent !== map {
+                parent.bringSubviewToFront(current)
+                current = parent
+            }
+            if current.superview === map {
+                map.bringSubviewToFront(current)
             }
         }
 
@@ -256,6 +275,16 @@ struct AnimatedMapView: UIViewRepresentable {
                 withIdentifier: CurrentPositionAnnotationView.reuseID,
                 for: annotation
             )
+        }
+
+        // Re-pin the marker on every camera change (user drag, zoom, pitch).
+        // Without this MapKit may shuffle subview order after a pan and put
+        // the overlay back on top.
+        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+            if positionAnnotationAdded,
+               let view = mapView.view(for: positionAnnotation) {
+                forceMarkerOnTop(view: view, in: mapView)
+            }
         }
     }
 }
