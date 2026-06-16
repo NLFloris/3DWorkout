@@ -25,6 +25,14 @@
 		AA0016160000000000000016 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB0016160000000000000016 /* Assets.xcassets */; };
 		AA0017170000000000000017 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0017170000000000000017 /* HealthKit.framework */; };
 		AA0018180000000000000018 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0018180000000000000018 /* MapKit.framework */; };
+		AA0022220000000000000022 /* UnitSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0022220000000000000022 /* UnitSettings.swift */; };
+		AA0023230000000000000023 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0023230000000000000023 /* SettingsView.swift */; };
+		AA0024240000000000000024 /* ElevationProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0024240000000000000024 /* ElevationProfileView.swift */; };
+		AA0025250000000000000025 /* CachedWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0025250000000000000025 /* CachedWorkout.swift */; };
+		AA0026260000000000000026 /* WorkoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0026260000000000000026 /* WorkoutStore.swift */; };
+		AA0027270000000000000027 /* RouteVideoRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0027270000000000000027 /* RouteVideoRenderer.swift */; };
+		AA0028280000000000000028 /* VideoExportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0028280000000000000028 /* VideoExportViewModel.swift */; };
+		AA0029290000000000000029 /* VideoExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0029290000000000000029 /* VideoExportView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +57,14 @@
 		BB0019190000000000000019 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BB0020200000000000000020 /* 3DWorkout.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = 3DWorkout.entitlements; sourceTree = "<group>"; };
 		BB0021210000000000000021 /* 3DWorkout.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = 3DWorkout.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB0022220000000000000022 /* UnitSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitSettings.swift; sourceTree = "<group>"; };
+		BB0023230000000000000023 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		BB0024240000000000000024 /* ElevationProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfileView.swift; sourceTree = "<group>"; };
+		BB0025250000000000000025 /* CachedWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedWorkout.swift; sourceTree = "<group>"; };
+		BB0026260000000000000026 /* WorkoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutStore.swift; sourceTree = "<group>"; };
+		BB0027270000000000000027 /* RouteVideoRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteVideoRenderer.swift; sourceTree = "<group>"; };
+		BB0028280000000000000028 /* VideoExportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoExportViewModel.swift; sourceTree = "<group>"; };
+		BB0029290000000000000029 /* VideoExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoExportView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +110,8 @@
 				BB0002020000000000000002 /* WorkoutSession.swift */,
 				BB0003030000000000000003 /* WorkoutRoute.swift */,
 				BB0004040000000000000004 /* WorkoutMetrics.swift */,
+				BB0022220000000000000022 /* UnitSettings.swift */,
+				BB0025250000000000000025 /* CachedWorkout.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -103,6 +121,8 @@
 			children = (
 				BB0005050000000000000005 /* HealthKitService.swift */,
 				BB0006060000000000000006 /* RouteAnimator.swift */,
+				BB0026260000000000000026 /* WorkoutStore.swift */,
+				BB0027270000000000000027 /* RouteVideoRenderer.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -112,6 +132,7 @@
 			children = (
 				BB0007070000000000000007 /* WorkoutListViewModel.swift */,
 				BB0008080000000000000008 /* WorkoutDetailViewModel.swift */,
+				BB0028280000000000000028 /* VideoExportViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -126,6 +147,9 @@
 				BB0013130000000000000013 /* AnimatedMapView.swift */,
 				BB0014140000000000000014 /* MetricsOverlayView.swift */,
 				BB0015150000000000000015 /* CustomizationView.swift */,
+				BB0023230000000000000023 /* SettingsView.swift */,
+				BB0024240000000000000024 /* ElevationProfileView.swift */,
+				BB0029290000000000000029 /* VideoExportView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -231,6 +255,14 @@
 				AA0013130000000000000013 /* AnimatedMapView.swift in Sources */,
 				AA0014140000000000000014 /* MetricsOverlayView.swift in Sources */,
 				AA0015150000000000000015 /* CustomizationView.swift in Sources */,
+				AA0022220000000000000022 /* UnitSettings.swift in Sources */,
+				AA0023230000000000000023 /* SettingsView.swift in Sources */,
+				AA0024240000000000000024 /* ElevationProfileView.swift in Sources */,
+				AA0025250000000000000025 /* CachedWorkout.swift in Sources */,
+				AA0026260000000000000026 /* WorkoutStore.swift in Sources */,
+				AA0027270000000000000027 /* RouteVideoRenderer.swift in Sources */,
+				AA0028280000000000000028 /* VideoExportViewModel.swift in Sources */,
+				AA0029290000000000000029 /* VideoExportView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -202,10 +202,26 @@ Not built now. The key constraint: **Strava OAuth requires a `client_secret` tha
 
 ---
 
-## 5. Open questions to confirm before building
+## 5. Decisions (confirmed)
 
-1. **Units:** support miles + km for splits/PRs, or metric-only first?
-2. **Share branding:** include an app watermark/logo on exported videos?
-3. **Heatmap scope:** all activity types merged, or per-type heatmaps?
-4. **Ghost runner matching tolerance:** how strict should "same route" be (exact start/finish vs. overlapping shape)?
-5. **Strava:** is hosting a small backend acceptable later, or should we stay at Option A (manual share) indefinitely?
+1. **Units:** user-selectable Metric/Imperial, defaulting to the device locale (`Automatic`). ✅ Implemented (see Status).
+2. **Share video branding:** include a subtle app watermark on exported videos.
+3. **Heatmap scope:** one merged heatmap with an activity-type filter.
+4. **Ghost runner matching:** default to a moderate tolerance, exposed as a user-adjustable slider.
+5. **Strava:** not in scope right now (options documented in §3, Feature 6 for later).
+
+---
+
+## 6. Status
+
+- ✅ **Units foundation** (`UnitSettings.swift`: `UnitPreference`, `UnitFormatter`, `AppSettings`) + global **Settings** screen with the metric/imperial picker. All distance/elevation/speed/pace displays now route through the formatter.
+- ✅ **Feature 2 — Elevation profile chart** (`ElevationProfileView.swift`, Swift Charts): synced rule marker to playback, drag-to-seek, units-aware, toggle in the playback panel.
+- 🔧 Fixed a pre-existing compile blocker in `MetricsOverlayView.swift` (duplicated `LiveMetrics` struct + duplicate speed pill from an earlier merge).
+- ✅ **Phase 0a — SwiftData store** (`CachedWorkout.swift` `@Model`, `WorkoutStore.swift`): caches workout metadata + lazily-filled route/metrics blobs keyed by HealthKit UUID. The list now loads instantly from disk then refreshes from HealthKit; routes/metrics are cached on first open instead of refetched every time. Schema reserves `segmentsData` (Feature 4) and `routeFingerprint` (Feature 5) for forward compatibility. `WorkoutStore` is injected from the app through both view models.
+- ✅ **Feature 1 — Shareable route video** (`RouteVideoRenderer.swift`, `VideoExportViewModel.swift`, `VideoExportView.swift`): renders an animated flyover MP4. Each frame is produced deterministically via `MKMapSnapshotter` (tiles + 3D camera off-screen), with the revealed route, live stats, and a subtle watermark composited on top in Core Graphics, then written with `AVAssetWriter`. Export sheet (share button in the detail toolbar) offers aspect ratio (portrait/square/landscape), duration, and stats/watermark toggles; finished video previews inline with Save-to-Photos (`NSPhotoLibraryAddUsageDescription` added) and a `ShareLink`. The per-frame snapshot `await` keeps the progress UI responsive.
+- ⏭️ Next: Feature 4 (Segment PRs), Feature 5 (ghost runner), route heatmap.
+
+### Implementation notes / risks for Feature 1
+- **Why snapshotter, not live-view capture:** capturing a live `MKMapView` (Metal-backed) is unreliable; `MKMapSnapshotter` renders tiles deterministically off-screen. Trade-off: slower (each frame is an async snapshot), so a 6 s clip renders in a handful of seconds behind a progress bar.
+- **3D projection:** the route overlay uses `snapshot.point(for:)`, which projects through the camera incl. pitch. Worth eyeballing on a real device at high pitch; reduce pitch if the line drifts from the basemap.
+- Flyover map styles are normalized to satellite/hybrid (snapshotter doesn't support flyover types).

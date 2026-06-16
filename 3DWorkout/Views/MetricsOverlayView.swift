@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MetricsOverlayView: View {
     @ObservedObject var viewModel: WorkoutDetailViewModel
+    @EnvironmentObject var settings: AppSettings
 
     private var live: LiveMetrics {
         guard let route = viewModel.route, !route.points.isEmpty else { return .empty }
@@ -16,19 +17,35 @@ struct MetricsOverlayView: View {
     }
 
     var body: some View {
+        let units = settings.units
         HStack(spacing: 14) {
-            MetricPill(icon: "heart.fill",    color: .red,    value: live.hrString,   unit: "bpm")
+            MetricPill(icon: "heart.fill", color: .red, value: live.hrString, unit: "bpm")
             divider
             if viewModel.session.usesPace {
-                MetricPill(icon: "stopwatch.fill", color: .blue, value: live.paceString, unit: "/km")
+                MetricPill(
+                    icon: "stopwatch.fill", color: .blue,
+                    value: live.speed.map { units.pace($0) } ?? "--",
+                    unit: units.paceUnit
+                )
             } else {
-                MetricPill(icon: "speedometer", color: .blue, value: live.kmhString, unit: "km/h")
+                MetricPill(
+                    icon: "speedometer", color: .blue,
+                    value: live.speed.map { units.speed($0) } ?? "--",
+                    unit: units.speedUnit
+                )
             }
-            MetricPill(icon: "speedometer",   color: .blue,   value: live.kmhString,  unit: "km/h")
             divider
-            MetricPill(icon: "location.fill", color: .orange, value: live.distString, unit: "km")
+            MetricPill(
+                icon: "location.fill", color: .orange,
+                value: live.distance.map { units.distanceValueString($0) } ?? "--",
+                unit: units.distanceUnit
+            )
             divider
-            MetricPill(icon: "mountain.2.fill", color: .green, value: live.elevString, unit: "m")
+            MetricPill(
+                icon: "mountain.2.fill", color: .green,
+                value: live.elevation.map { units.elevationValueString($0) } ?? "--",
+                unit: units.elevationUnit
+            )
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -68,38 +85,11 @@ private struct MetricPill: View {
 
 private struct LiveMetrics {
     var heartRate: Double? = nil
-    var elevation: Double? = nil
-    var speed: Double? = nil     // m/s
-    var distance: Double? = nil  // meters
+    var elevation: Double? = nil  // meters
+    var speed: Double? = nil      // m/s
+    var distance: Double? = nil   // meters
 
     static let empty = LiveMetrics()
 
-    var hrString:   String { heartRate.map { "\(Int($0))" } ?? "--" }
-    var kmhString:  String { speed.map { String(format: "%.1f", $0 * 3.6) } ?? "--" }
-    var distString: String { distance.map { String(format: "%.2f", $0 / 1000) } ?? "--" }
-    var elevString: String { elevation.map { "\(Int($0))" } ?? "--" }
-
-    // Pace in min:sec per km. Below ~0.4 m/s (≈1.5 km/h) treat as stopped.
-    var paceString: String {
-        guard let s = speed, s > 0.4 else { return "--" }
-        let secPerKm = 1000.0 / s
-        guard secPerKm.isFinite, secPerKm < 60 * 60 else { return "--" }
-        let m = Int(secPerKm) / 60
-        let sec = Int(secPerKm) % 60
-        return String(format: "%d:%02d", m, sec)
-    }
-}
-
-private struct LiveMetrics {
-    var heartRate: Double? = nil
-    var elevation: Double? = nil
-    var speed: Double? = nil     // m/s
-    var distance: Double? = nil  // meters
-
-    static let empty = LiveMetrics()
-
-    var hrString:   String { heartRate.map { "\(Int($0))" } ?? "--" }
-    var kmhString:  String { speed.map { String(format: "%.1f", $0 * 3.6) } ?? "--" }
-    var distString: String { distance.map { String(format: "%.2f", $0 / 1000) } ?? "--" }
-    var elevString: String { elevation.map { "\(Int($0))" } ?? "--" }
+    var hrString: String { heartRate.map { "\(Int($0))" } ?? "--" }
 }

@@ -2,10 +2,14 @@ import SwiftUI
 
 struct WorkoutListView: View {
     @EnvironmentObject var healthKitService: HealthKitService
+    @EnvironmentObject var settings: AppSettings
     @StateObject private var viewModel: WorkoutListViewModel
+    @State private var showSettings = false
+    private let store: WorkoutStore
 
-    init(healthKitService: HealthKitService) {
-        _viewModel = StateObject(wrappedValue: WorkoutListViewModel(healthKitService: healthKitService))
+    init(healthKitService: HealthKitService, store: WorkoutStore) {
+        self.store = store
+        _viewModel = StateObject(wrappedValue: WorkoutListViewModel(healthKitService: healthKitService, store: store))
     }
 
     var body: some View {
@@ -23,6 +27,14 @@ struct WorkoutListView: View {
             }
             .navigationTitle("Workouts")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .fontWeight(.semibold)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if viewModel.isLoading {
                         ProgressView().scaleEffect(0.75)
@@ -35,6 +47,10 @@ struct WorkoutListView: View {
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+                    .environmentObject(settings)
             }
             .alert("Error", isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
@@ -54,7 +70,7 @@ struct WorkoutListView: View {
                 summaryHeader
                 ForEach(viewModel.workouts) { session in
                     NavigationLink {
-                        WorkoutDetailView(session: session, healthKitService: healthKitService)
+                        WorkoutDetailView(session: session, healthKitService: healthKitService, store: store)
                     } label: {
                         WorkoutCard(session: session)
                     }
@@ -78,7 +94,7 @@ struct WorkoutListView: View {
             Divider().frame(height: 32)
             SummaryTile(
                 value: totalDistance,
-                label: "Total km",
+                label: "Total \(settings.units.distanceUnit)",
                 icon: "location.fill",
                 color: .blue
             )
@@ -90,8 +106,8 @@ struct WorkoutListView: View {
     }
 
     private var totalDistance: String {
-        let km = viewModel.workouts.compactMap(\.totalDistance).reduce(0, +) / 1000
-        return String(format: "%.0f", km)
+        let meters = viewModel.workouts.compactMap(\.totalDistance).reduce(0, +)
+        return settings.units.distanceValueString(meters, decimals: 0)
     }
 
     private var emptyState: some View {
@@ -115,6 +131,7 @@ struct WorkoutListView: View {
 
 private struct WorkoutCard: View {
     let session: WorkoutSession
+    @EnvironmentObject var settings: AppSettings
 
     var body: some View {
         VStack(spacing: 0) {
@@ -150,7 +167,7 @@ private struct WorkoutCard: View {
 
             // Stats row
             HStack(spacing: 0) {
-                if let dist = session.formattedDistance {
+                if let dist = session.formattedDistance(settings.units) {
                     StatCell(value: dist, label: "Distance", icon: "location.fill", color: .blue)
                 }
                 StatCell(value: session.formattedDuration, label: "Duration", icon: "clock.fill", color: .orange)

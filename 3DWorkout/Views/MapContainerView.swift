@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MapContainerView: View {
     @ObservedObject var viewModel: WorkoutDetailViewModel
+    @State private var showElevation = true
 
     var body: some View {
         ZStack {
@@ -20,10 +21,25 @@ struct MapContainerView: View {
 
                 Spacer()
 
-                // Playback panel — floats at the bottom
-                PlaybackPanel(viewModel: viewModel)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                // Bottom stack — elevation profile + playback controls
+                VStack(spacing: 10) {
+                    if showElevation {
+                        ElevationProfileView(viewModel: viewModel)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.18), radius: 20, y: 6)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+
+                    PlaybackPanel(viewModel: viewModel, showElevation: $showElevation)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
         }
     }
@@ -33,6 +49,7 @@ struct MapContainerView: View {
 
 private struct PlaybackPanel: View {
     @ObservedObject var viewModel: WorkoutDetailViewModel
+    @Binding var showElevation: Bool
 
     var body: some View {
         VStack(spacing: 12) {
@@ -54,14 +71,25 @@ private struct PlaybackPanel: View {
                     .frame(width: 38, alignment: .leading)
             }
 
-            // Control buttons
+            // Control buttons — play stays centered, leading/trailing groups balance it
             HStack(alignment: .center) {
-                // Stop
-                CircleButton(icon: "stop.fill", size: 36, tint: .secondary) {
-                    viewModel.animator.stop()
+                HStack(spacing: 12) {
+                    // Stop
+                    CircleButton(icon: "stop.fill", size: 36, tint: .secondary) {
+                        viewModel.animator.stop()
+                    }
+                    // Elevation profile toggle
+                    CircleButton(
+                        icon: "chart.xyaxis.line",
+                        size: 36,
+                        tint: showElevation ? .red : .secondary
+                    ) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            showElevation.toggle()
+                        }
+                    }
                 }
-
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Play / Pause (hero button)
                 CircleButton(
@@ -75,8 +103,6 @@ private struct PlaybackPanel: View {
                         : viewModel.animator.play()
                 }
 
-                Spacer()
-
                 // Speed
                 Button {
                     viewModel.cycleSpeed()
@@ -87,6 +113,7 @@ private struct PlaybackPanel: View {
                         .frame(width: 36, height: 36)
                         .background(.quaternary, in: Circle())
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .padding(.horizontal, 20)
