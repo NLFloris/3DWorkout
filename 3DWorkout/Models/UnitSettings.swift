@@ -100,21 +100,105 @@ struct UnitFormatter {
 
 /// App-wide settings, persisted to `UserDefaults`. Injected as an
 /// environment object so views re-render when the preference changes.
+///
+/// Holds three groups: measurement units, workout-view defaults (consumed by
+/// `WorkoutDetailViewModel.init`), and heatmap defaults (consumed by
+/// `HeatmapViewModel` and the heatmap renderer).
 @MainActor
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
-    private let unitKey = "unitPreference"
+    private let d = UserDefaults.standard
+
+    // MARK: - Units
 
     @Published var unitPreference: UnitPreference {
-        didSet { UserDefaults.standard.set(unitPreference.rawValue, forKey: unitKey) }
+        didSet { d.set(unitPreference.rawValue, forKey: K.unitPreference) }
     }
 
-    /// Formatter reflecting the current (resolved) preference.
     var units: UnitFormatter { UnitFormatter(isMetric: unitPreference.isMetric) }
 
+    // MARK: - Workout view defaults
+
+    @Published var defaultGradientMetric: String {
+        didSet { d.set(defaultGradientMetric, forKey: K.wvGradientMetric) }
+    }
+    @Published var defaultMapStyle: String {
+        didSet { d.set(defaultMapStyle, forKey: K.wvMapStyle) }
+    }
+    @Published var defaultIs3DMode: Bool {
+        didSet { d.set(defaultIs3DMode, forKey: K.wvIs3D) }
+    }
+    @Published var defaultPitch: Double {
+        didSet { d.set(defaultPitch, forKey: K.wvPitch) }
+    }
+    @Published var defaultCameraDistance: Double {
+        didSet { d.set(defaultCameraDistance, forKey: K.wvCameraDistance) }
+    }
+    @Published var defaultLineWidth: Double {
+        didSet { d.set(defaultLineWidth, forKey: K.wvLineWidth) }
+    }
+    @Published var defaultAnimationSpeed: Double {
+        didSet { d.set(defaultAnimationSpeed, forKey: K.wvAnimationSpeed) }
+    }
+    @Published var defaultRouteColorHex: String {
+        didSet { d.set(defaultRouteColorHex, forKey: K.wvRouteColorHex) }
+    }
+
+    // MARK: - Heatmap defaults
+
+    @Published var heatmapDateRange: HeatmapDateRange {
+        didSet { d.set(heatmapDateRange.rawValue, forKey: K.hmDateRange) }
+    }
+    @Published var heatmapSelectedSports: Set<String> {
+        didSet {
+            d.set(Array(heatmapSelectedSports), forKey: K.hmSelectedSports)
+        }
+    }
+    @Published var heatmapLineAlpha: Double {
+        didSet { d.set(heatmapLineAlpha, forKey: K.hmLineAlpha) }
+    }
+    @Published var heatmapLineWidth: Double {
+        didSet { d.set(heatmapLineWidth, forKey: K.hmLineWidth) }
+    }
+
+    private enum K {
+        static let unitPreference     = "unitPreference"
+        static let wvGradientMetric   = "wv.gradientMetric"
+        static let wvMapStyle         = "wv.mapStyle"
+        static let wvIs3D             = "wv.is3D"
+        static let wvPitch            = "wv.pitch"
+        static let wvCameraDistance   = "wv.cameraDistance"
+        static let wvLineWidth        = "wv.lineWidth"
+        static let wvAnimationSpeed   = "wv.animationSpeed"
+        static let wvRouteColorHex    = "wv.routeColorHex"
+        static let hmDateRange        = "hm.dateRange"
+        static let hmSelectedSports   = "hm.selectedSports"
+        static let hmLineAlpha        = "hm.lineAlpha"
+        static let hmLineWidth        = "hm.lineWidth"
+    }
+
     init() {
-        let raw = UserDefaults.standard.string(forKey: unitKey)
-        unitPreference = raw.flatMap(UnitPreference.init(rawValue:)) ?? .automatic
+        // Units
+        let unitRaw = d.string(forKey: K.unitPreference)
+        unitPreference = unitRaw.flatMap(UnitPreference.init(rawValue:)) ?? .automatic
+
+        // Workout view
+        defaultGradientMetric = d.string(forKey: K.wvGradientMetric) ?? "pace"
+        defaultMapStyle = d.string(forKey: K.wvMapStyle) ?? "hybrid"
+        defaultIs3DMode = (d.object(forKey: K.wvIs3D) as? Bool) ?? true
+        defaultPitch = (d.object(forKey: K.wvPitch) as? Double) ?? 60.0
+        defaultCameraDistance = (d.object(forKey: K.wvCameraDistance) as? Double) ?? 400.0
+        defaultLineWidth = (d.object(forKey: K.wvLineWidth) as? Double) ?? 4.0
+        defaultAnimationSpeed = (d.object(forKey: K.wvAnimationSpeed) as? Double) ?? 4.0
+        defaultRouteColorHex = d.string(forKey: K.wvRouteColorHex) ?? "#0A84FF"
+
+        // Heatmap
+        let hmRaw = d.string(forKey: K.hmDateRange)
+        heatmapDateRange = hmRaw.flatMap(HeatmapDateRange.init(rawValue:)) ?? .lastMonth
+        let hmSports = (d.array(forKey: K.hmSelectedSports) as? [String]) ?? []
+        heatmapSelectedSports = Set(hmSports)
+        heatmapLineAlpha = (d.object(forKey: K.hmLineAlpha) as? Double) ?? 0.20
+        heatmapLineWidth = (d.object(forKey: K.hmLineWidth) as? Double) ?? 3.0
     }
 }

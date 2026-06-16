@@ -14,11 +14,10 @@ struct AnimatedMapView: UIViewRepresentable {
         map.showsUserLocation = false
         map.showsCompass = true
         map.showsScale = true
-        // The current-position marker is a plain subview pinned to a
-        // coordinate, not an MKAnnotation — MapKit animates KVO-driven
-        // annotation coordinate changes over ~250 ms which made the marker
-        // lag behind the polyline reveal during fast playback ("two dots").
-        map.addSubview(context.coordinator.positionMarkerView)
+        map.register(
+            CurrentPositionAnnotationView.self,
+            forAnnotationViewWithReuseIdentifier: CurrentPositionAnnotationView.reuseID
+        )
         return map
     }
 
@@ -65,25 +64,12 @@ struct AnimatedMapView: UIViewRepresentable {
         private let distanceEpsilonM: Double = 1.0
         private let pitchEpsilonDeg: Double = 0.5
 
-        // Live position marker — a UIView pinned to a coordinate. We
-        // reposition it on every animator tick and on every map-region
-        // change so it cannot lag behind the polyline head.
-        let positionMarkerView: UIView = {
-            let v = UIView(frame: CGRect(x: 0, y: 0, width: 18, height: 18))
-            v.backgroundColor = .systemRed
-            v.layer.cornerRadius = 9
-            v.layer.borderColor = UIColor.white.cgColor
-            v.layer.borderWidth = 2.5
-            v.layer.shadowColor = UIColor.black.cgColor
-            v.layer.shadowOpacity = 0.35
-            v.layer.shadowRadius = 4
-            v.layer.shadowOffset = .zero
-            v.isUserInteractionEnabled = false
-            v.layer.zPosition = 1000
-            v.isHidden = true
-            return v
-        }()
-        private var positionMarkerCoord: CLLocationCoordinate2D?
+        // Live position dot — uses an MKAnnotation so MapKit renders it above
+        // the polyline overlays (annotations are always on top of overlays).
+        // The KVO-driven coordinate animation that previously caused the
+        // "two dots" lag is suppressed inside `updatePositionAnnotation`.
+        private let positionAnnotation = CurrentPositionAnnotation()
+        private var positionAnnotationAdded = false
 
         init(viewModel: WorkoutDetailViewModel) {
             self.viewModel = viewModel
@@ -96,7 +82,7 @@ struct AnimatedMapView: UIViewRepresentable {
                     guard let self, let map = self.mapView else { return }
                     self.applyRevealedPointIndex(index)
                     self.updateCamera(on: map)
-                    self.updatePositionMarker(on: map)
+                    self.updatePositionAnnotation(on: map)
                 }
                 .store(in: &cancellables)
         }
@@ -165,7 +151,7 @@ struct AnimatedMapView: UIViewRepresentable {
                 hasFramed = true
             }
 
-            updatePositionMarker(on: map)
+            updatePositionAnnotation(on: map)
         }
 
         /// Update strokeColors of existing renderers without rebuilding overlays.
@@ -211,27 +197,33 @@ struct AnimatedMapView: UIViewRepresentable {
             }
         }
 
-        // MARK: - Position marker
+        // MARK: - Position annotation
 
-        private func updatePositionMarker(on map: MKMapView) {
+        private func updatePositionAnnotation(on map: MKMapView) {
             guard let coord = viewModel.animator.currentCoordinate,
                   CLLocationCoordinate2DIsValid(coord) else { return }
-            positionMarkerCoord = coord
-            // Direct, animation-free positioning. UIKit would otherwise
-            // implicitly animate the center change inside MapKit's animation
-            // transactions.
-            UIView.performWithoutAnimation {
-                positionMarkerView.center = map.convert(coord, toPointTo: map)
-                positionMarkerView.isHidden = false
-            }
-        }
 
-        /// Keep the marker pinned to its coordinate when the map's visible
-        /// region changes (user pan/zoom or programmatic camera changes).
-        private func repositionMarkerForRegionChange(on map: MKMapView) {
-            guard let coord = positionMarkerCoord else { return }
-            UIView.performWithoutAnimation {
-                positionMarkerView.center = map.convert(coord, toPointTo: map)
+            // 1. Update the coordinate inside a transaction with disabled
+            //    implicit actions so MapKit doesn't kick off its own
+            //    Core Animation tween between old and new positions.
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            positionAnnotation.coordinate = coord
+            CATransaction.commit()
+
+            if !positionAnnotationAdded {
+                map.addAnnotation(positionAnnotation)
+                positionAnnotationAdded = true
+            }
+
+            // 2. Then explicitly snap the annotation view's centre to the
+            //    target screen position and cancel any animation MapKit may
+            //    still have queued — this is what truly kills the "trailing
+            //    dot" effect at high playback speeds.
+            if let view = map.view(for: positionAnnotation) {
+                let target = map.convert(coord, toPointTo: map)
+                view.layer.removeAllAnimations()
+                UIView.performWithoutAnimation { view.center = target }
             }
         }
 
@@ -297,10 +289,12 @@ struct AnimatedMapView: UIViewRepresentable {
             return renderer
         }
 
-        // Called continuously as the camera moves (programmatic or user gesture).
-        // Keeps the marker pinned to its world coordinate without animation.
-        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
-            repositionMarkerForRegionChange(on: mapView)
+        func mapView(_ map: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            guard annotation is CurrentPositionAnnotation else { return nil }
+            return map.dequeueReusableAnnotationView(
+                withIdentifier: CurrentPositionAnnotationView.reuseID,
+                for: annotation
+            )
         }
 
         // The coordinator's current reveal state is read by RouteSegmentRenderer.
@@ -315,12 +309,6 @@ struct AnimatedMapView: UIViewRepresentable {
 /// MKPolylineRenderer that suppresses drawing for segments past the current
 /// playback position. This lets us add every segment to the map once at load
 /// and reveal progressively without `addOverlays(_:)` churn on every tick.
-///
-/// The segment index is read from the polyline's `title` (set when the overlay
-/// is created). We override `init(overlay:)` because `MKPolylineRenderer`'s
-/// `init(polyline:)` dispatches through `-[self initWithOverlay:]` in
-/// Objective-C, and a missing override would crash with "Use of unimplemented
-/// initializer 'init(overlay:)'".
 private final class RouteSegmentRenderer: MKPolylineRenderer {
     let segmentIndex: Int
     weak var coordinator: AnimatedMapView.Coordinator?
@@ -339,5 +327,71 @@ private final class RouteSegmentRenderer: MKPolylineRenderer {
     override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
         guard coordinator?.shouldDrawSegment(segmentIndex) ?? false else { return }
         super.draw(mapRect, zoomScale: zoomScale, in: context)
+    }
+}
+
+// MARK: - Position Annotation
+
+/// MKAnnotation that drives the live playback marker. The `dynamic` coordinate
+/// is KVO-observed by MapKit; coordinate writes are wrapped in a
+/// `CATransaction.setDisableActions(true)` block to suppress the implicit
+/// position animation.
+private final class CurrentPositionAnnotation: NSObject, MKAnnotation {
+    private var _coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+    @objc dynamic var coordinate: CLLocationCoordinate2D {
+        get { _coordinate }
+        set {
+            willChangeValue(forKey: "coordinate")
+            _coordinate = newValue
+            didChangeValue(forKey: "coordinate")
+        }
+    }
+}
+
+/// Annotation view that opts out of every implicit Core Animation that MapKit
+/// might attach to its position — together with the coordinator's
+/// `view.layer.removeAllAnimations()` + `UIView.performWithoutAnimation`
+/// centre snap, the dot stays glued to the polyline head.
+private final class CurrentPositionAnnotationView: MKAnnotationView {
+    static let reuseID = "currentPositionDot"
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        configure()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configure()
+    }
+
+    private func configure() {
+        frame = CGRect(x: 0, y: 0, width: 18, height: 18)
+        backgroundColor = .systemRed
+        layer.cornerRadius = 9
+        layer.borderColor = UIColor.white.cgColor
+        layer.borderWidth = 2.5
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.35
+        layer.shadowRadius = 4
+        layer.shadowOffset = .zero
+        canShowCallout = false
+        isUserInteractionEnabled = false
+        // Disable implicit animations on position / bounds — MapKit otherwise
+        // animates these whenever the annotation's coordinate changes.
+        layer.actions = [
+            "position": NSNull(),
+            "bounds": NSNull(),
+            "transform": NSNull(),
+            "opacity": NSNull()
+        ]
+        // Annotation views sit on top of overlays in MKAnnotationContainerView,
+        // but lift the z-position too in case of any sibling re-ordering.
+        layer.zPosition = 1000
+    }
+
+    override func setSelected(_ selected: Bool, animated: Bool) {
+        // Always skip MapKit's selection animation.
+        super.setSelected(selected, animated: false)
     }
 }

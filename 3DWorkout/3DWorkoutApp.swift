@@ -11,7 +11,7 @@ struct ThreeDWorkoutApp: App {
             Group {
                 switch healthKitService.authorizationStatus {
                 case .authorized:
-                    WorkoutListView(healthKitService: healthKitService, store: store)
+                    MainTabView(healthKitService: healthKitService, store: store)
                         .environmentObject(healthKitService)
                 case .denied, .notDetermined:
                     PermissionsView()

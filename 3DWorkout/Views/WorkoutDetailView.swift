@@ -10,12 +10,18 @@ struct WorkoutDetailView: View {
     @State private var showCustomization = false
     @State private var showVideoExport = false
 
-    init(session: WorkoutSession, healthKitService: HealthKitService, store: WorkoutStore) {
+    init(session: WorkoutSession,
+         healthKitService: HealthKitService,
+         store: WorkoutStore,
+         settings: AppSettings) {
         self.session = session
         self.healthKitService = healthKitService
         self.store = store
         _viewModel = StateObject(wrappedValue: WorkoutDetailViewModel(
-            session: session, healthKitService: healthKitService, store: store
+            session: session,
+            healthKitService: healthKitService,
+            store: store,
+            settings: settings
         ))
     }
 
@@ -43,6 +49,7 @@ struct WorkoutDetailView: View {
         .navigationTitle(session.workoutType)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
@@ -55,6 +62,7 @@ struct WorkoutDetailView: View {
                         systemImage: viewModel.is3DMode ? "square.2.layers.3d" : "square.3.layers.3d"
                     )
                     .labelStyle(.iconOnly)
+                    .contentTransition(.symbolEffect(.replace))
                 }
                 .disabled(viewModel.route == nil)
 

@@ -27,7 +27,13 @@ struct MetricsOverlayView: View {
     var body: some View {
         let units = settings.units
         HStack(spacing: 14) {
-            MetricPill(icon: "heart.fill", color: .red, value: live.hrString, unit: "bpm")
+            MetricPill(
+                icon: "heart.fill",
+                color: .red,
+                value: live.hrString,
+                unit: "bpm",
+                pulse: animator.isPlaying
+            )
             divider
             if viewModel.session.usesPace {
                 MetricPill(
@@ -74,12 +80,15 @@ private struct MetricPill: View {
     let color: Color
     let value: String
     let unit: String
+    /// When true the icon pulses — used for the heart icon during playback.
+    var pulse: Bool = false
 
     var body: some View {
         VStack(spacing: 1) {
             Image(systemName: icon)
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(color)
+                .symbolEffect(.pulse, options: .repeating, isActive: pulse)
             Text(value)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .monospacedDigit()

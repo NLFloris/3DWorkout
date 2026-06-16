@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import CoreLocation
 
 /// Local persistence layer backed by SwiftData. Mirrors HealthKit so the app
 /// launches instantly from disk and avoids refetching heavy route data. Also
@@ -13,7 +14,7 @@ final class WorkoutStore: ObservableObject {
     private let decoder = JSONDecoder()
 
     init() {
-        let schema = Schema([CachedWorkout.self])
+        let schema = Schema([CachedWorkout.self, CachedHeatmapTrack.self])
         if let onDisk = try? ModelContainer(
             for: schema,
             configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
@@ -82,6 +83,61 @@ final class WorkoutStore: ObservableObject {
         guard let model = model(for: uuid) else { return }
         model.metricsData = try? encoder.encode(metrics)
         save()
+    }
+
+    // MARK: - Heatmap tracks
+
+    /// Sessions that don't yet have a `CachedHeatmapTrack`. Drives indexer
+    /// progress.
+    func sessionsNeedingHeatmapIndex() -> [WorkoutSession] {
+        let indexed: Set<UUID> = {
+            let descriptor = FetchDescriptor<CachedHeatmapTrack>()
+            let rows = (try? context.fetch(descriptor)) ?? []
+            return Set(rows.map(\.hkWorkoutUUID))
+        }()
+        return cachedSessions().filter { !indexed.contains($0.hkWorkoutUUID) }
+    }
+
+    /// Upsert. An empty `coords` array marks "indexed, no GPS data" so we
+    /// don't refetch from HealthKit on every subsequent heatmap open.
+    func storeHeatmapTrack(_ coords: [CLLocationCoordinate2D], for session: WorkoutSession) {
+        if let existing = trackRecord(for: session.hkWorkoutUUID) {
+            context.delete(existing)
+        }
+        context.insert(CachedHeatmapTrack(
+            hkWorkoutUUID: session.hkWorkoutUUID,
+            sportType: session.workoutType,
+            startDate: session.startDate,
+            coords: coords
+        ))
+        save()
+    }
+
+    /// All track records matching the given filters.
+    func fetchHeatmapTracks(startDate: Date?, sports: Set<String>) -> [CachedHeatmapTrack] {
+        let descriptor = FetchDescriptor<CachedHeatmapTrack>()
+        let all = (try? context.fetch(descriptor)) ?? []
+        return all.filter { record in
+            if record.pointCount == 0 { return false }
+            if let start = startDate, record.startDate < start { return false }
+            if !sports.isEmpty, !sports.contains(record.sportType) { return false }
+            return true
+        }
+    }
+
+    /// All distinct sport types we've indexed tracks for - feeds filter UI.
+    func indexedSportTypes() -> [String] {
+        let descriptor = FetchDescriptor<CachedHeatmapTrack>()
+        let rows = (try? context.fetch(descriptor)) ?? []
+        return Array(Set(rows.map(\.sportType))).sorted()
+    }
+
+    private func trackRecord(for uuid: UUID) -> CachedHeatmapTrack? {
+        var descriptor = FetchDescriptor<CachedHeatmapTrack>(
+            predicate: #Predicate { $0.hkWorkoutUUID == uuid }
+        )
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
     }
 
     // MARK: - Private

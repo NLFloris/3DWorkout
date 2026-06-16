@@ -51,24 +51,38 @@ final class WorkoutDetailViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var routeID: UUID?
 
-    // Customization
-    @Published var gradientMetric: GradientMetric = .pace { didSet { invalidateColors() } }
-    @Published var routeColor: Color = .blue { didSet { if gradientMetric == .solid { invalidateColors() } } }
-    @Published var lineWidth: CGFloat = 4.0
-    @Published var mapStyle: MapDisplayStyle = .hybrid
-    @Published var is3DMode: Bool = true
-    @Published var pitch: Double = 60.0
-    @Published var animationSpeed: AnimationSpeed = .fourX { didSet { animator.animationSpeed = animationSpeed } }
-    @Published var cameraDistance: Double = 400.0
+    // Customization — initial values come from AppSettings so the user can
+    // pick their preferred look once and have every new workout open with it.
+    @Published var gradientMetric: GradientMetric { didSet { invalidateColors() } }
+    @Published var routeColor: Color { didSet { if gradientMetric == .solid { invalidateColors() } } }
+    @Published var lineWidth: CGFloat
+    @Published var mapStyle: MapDisplayStyle
+    @Published var is3DMode: Bool
+    @Published var pitch: Double
+    @Published var animationSpeed: AnimationSpeed { didSet { animator.animationSpeed = animationSpeed } }
+    @Published var cameraDistance: Double
 
     private var cachedColors: (metric: GradientMetric, colors: [UIColor])?
     private let healthKitService: HealthKitService
     private let store: WorkoutStore
 
-    init(session: WorkoutSession, healthKitService: HealthKitService, store: WorkoutStore) {
+    init(session: WorkoutSession,
+         healthKitService: HealthKitService,
+         store: WorkoutStore,
+         settings: AppSettings) {
         self.session = session
         self.healthKitService = healthKitService
         self.store = store
+
+        self.gradientMetric  = GradientMetric(rawValue: settings.defaultGradientMetric) ?? .pace
+        self.routeColor      = Color(hex: settings.defaultRouteColorHex)
+        self.lineWidth       = CGFloat(settings.defaultLineWidth)
+        self.mapStyle        = MapDisplayStyle(rawValue: settings.defaultMapStyle) ?? .hybrid
+        self.is3DMode        = settings.defaultIs3DMode
+        self.pitch           = settings.defaultPitch
+        self.cameraDistance  = settings.defaultCameraDistance
+        self.animationSpeed  = AnimationSpeed(rawValue: settings.defaultAnimationSpeed) ?? .fourX
+
         animator.animationSpeed = animationSpeed
     }
 

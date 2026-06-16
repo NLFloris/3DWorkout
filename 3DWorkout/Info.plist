@@ -26,6 +26,8 @@
 	<string>3DWorkout reads your Apple Watch workout routes, GPS tracks, and heart rate data to create animated 3D map replays. No data leaves your device.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>3DWorkout does not write any health data.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>3DWorkout centers the heatmap on your current location. Location is read once when you open the Heatmap tab and is not tracked.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>3DWorkout saves the route videos you export to your photo library.</string>
 	<key>UIApplicationSceneManifest</key>

@@ -98,12 +98,14 @@ private struct PlaybackPanel: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                // Play / Pause (hero button)
+                // Play / Pause (hero button) — symbolEffect(.replace) crossfades
+                // between the two glyphs instead of popping.
                 CircleButton(
                     icon: animator.isPlaying ? "pause.fill" : "play.fill",
                     size: 56,
                     tint: .white,
-                    fill: .red
+                    fill: .red,
+                    symbolContentTransition: .symbolEffect(.replace)
                 ) {
                     animator.isPlaying ? animator.pause() : animator.play()
                 }
@@ -196,6 +198,9 @@ private struct CircleButton: View {
     let size: CGFloat
     let tint: Color
     var fill: Color = .clear
+    /// Optional content-transition for the inner glyph — useful for toggles
+    /// like play/pause where we want the symbol to smoothly morph.
+    var symbolContentTransition: ContentTransition = .identity
     let action: () -> Void
 
     var body: some View {
@@ -209,6 +214,7 @@ private struct CircleButton: View {
                 Image(systemName: icon)
                     .font(.system(size: size * 0.38, weight: .semibold))
                     .foregroundStyle(tint)
+                    .contentTransition(symbolContentTransition)
             }
         }
         .frame(width: size, height: size)

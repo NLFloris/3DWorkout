@@ -4,13 +4,14 @@ struct WorkoutListView: View {
     @EnvironmentObject var healthKitService: HealthKitService
     @EnvironmentObject var settings: AppSettings
     @StateObject private var viewModel: WorkoutListViewModel
-    @State private var showSettings = false
     private let store: WorkoutStore
 
     init(healthKitService: HealthKitService, store: WorkoutStore) {
         self.store = store
         _viewModel = StateObject(wrappedValue: WorkoutListViewModel(healthKitService: healthKitService, store: store))
     }
+
+    @State private var refreshTrigger: Int = 0
 
     var body: some View {
         NavigationStack {
@@ -27,30 +28,20 @@ struct WorkoutListView: View {
             }
             .navigationTitle("Workouts")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .fontWeight(.semibold)
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if viewModel.isLoading {
                         ProgressView().scaleEffect(0.75)
                     } else {
                         Button {
+                            refreshTrigger &+= 1
                             Task { await viewModel.loadWorkouts() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                                 .fontWeight(.semibold)
+                                .symbolEffect(.bounce, value: refreshTrigger)
                         }
                     }
                 }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
-                    .environmentObject(settings)
             }
             .alert("Error", isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
@@ -68,13 +59,21 @@ struct WorkoutListView: View {
         ScrollView {
             LazyVStack(spacing: 10) {
                 summaryHeader
-                ForEach(viewModel.workouts) { session in
-                    NavigationLink {
-                        WorkoutDetailView(session: session, healthKitService: healthKitService, store: store)
-                    } label: {
-                        WorkoutCard(session: session)
+                WorkoutFilterBar(viewModel: viewModel)
+                if viewModel.filteredWorkouts.isEmpty {
+                    filteredEmptyHint
+                } else {
+                    ForEach(viewModel.filteredWorkouts) { session in
+                        NavigationLink {
+                            WorkoutDetailView(session: session,
+                                              healthKitService: healthKitService,
+                                              store: store,
+                                              settings: settings)
+                        } label: {
+                            WorkoutCard(session: session)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 16)
@@ -83,10 +82,23 @@ struct WorkoutListView: View {
         .background(Color(.systemGroupedBackground))
     }
 
+    private var filteredEmptyHint: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 36))
+                .foregroundStyle(.secondary)
+            Text("No workouts match these filters.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+
     private var summaryHeader: some View {
         HStack(spacing: 0) {
             SummaryTile(
-                value: "\(viewModel.workouts.count)",
+                value: "\(viewModel.filteredWorkouts.count)",
                 label: "Workouts",
                 icon: "flame.fill",
                 color: .orange
@@ -106,15 +118,18 @@ struct WorkoutListView: View {
     }
 
     private var totalDistance: String {
-        let meters = viewModel.workouts.compactMap(\.totalDistance).reduce(0, +)
+        let meters = viewModel.filteredWorkouts.compactMap(\.totalDistance).reduce(0, +)
         return settings.units.distanceValueString(meters, decimals: 0)
     }
+
+    @State private var emptyStateAppeared = false
 
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "figure.run.circle")
                 .font(.system(size: 64))
                 .foregroundStyle(.secondary)
+                .symbolEffect(.bounce, value: emptyStateAppeared)
             Text("No Workouts Found")
                 .font(.title3.bold())
             Text("Complete a GPS workout on your Apple Watch\nto see it here.")
@@ -124,6 +139,7 @@ struct WorkoutListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
+        .onAppear { emptyStateAppeared = true }
     }
 }
 
@@ -212,6 +228,78 @@ private struct StatCell: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Filter bar
+
+private struct WorkoutFilterBar: View {
+    @ObservedObject var viewModel: WorkoutListViewModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Menu {
+                Picker("Date range", selection: $viewModel.dateRange) {
+                    ForEach(HeatmapDateRange.allCases) { r in
+                        Text(r.displayName).tag(r)
+                    }
+                }
+            } label: {
+                chipLabel(icon: "calendar", text: viewModel.dateRange.displayName)
+            }
+
+            Menu {
+                ForEach(viewModel.availableSports, id: \.self) { sport in
+                    Button {
+                        toggle(sport)
+                    } label: {
+                        if viewModel.selectedSports.contains(sport) {
+                            Label(sport, systemImage: "checkmark")
+                        } else {
+                            Text(sport)
+                        }
+                    }
+                }
+                Divider()
+                Button("Select all") {
+                    viewModel.selectedSports = Set(viewModel.availableSports)
+                }
+            } label: {
+                chipLabel(icon: "figure.run", text: sportsLabel)
+            }
+            .disabled(viewModel.availableSports.isEmpty)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 6)
+    }
+
+    private func chipLabel(icon: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+            Text(text)
+            Image(systemName: "chevron.down").font(.caption2.bold())
+        }
+        .font(.subheadline.weight(.semibold))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.background, in: Capsule())
+        .overlay(Capsule().strokeBorder(.secondary.opacity(0.18), lineWidth: 0.5))
+    }
+
+    private func toggle(_ sport: String) {
+        if viewModel.selectedSports.contains(sport) {
+            viewModel.selectedSports.remove(sport)
+        } else {
+            viewModel.selectedSports.insert(sport)
+        }
+    }
+
+    private var sportsLabel: String {
+        if viewModel.availableSports.isEmpty { return "Sports" }
+        if viewModel.selectedSports.count == viewModel.availableSports.count { return "All sports" }
+        if viewModel.selectedSports.count == 1 { return viewModel.selectedSports.first ?? "Sport" }
+        return "\(viewModel.selectedSports.count) sports"
     }
 }
 
