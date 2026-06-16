@@ -15,6 +15,7 @@
 		70CF42202FE17EB400CF8F48 /* HeatmapTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CF421F2FE17EB400CF8F48 /* HeatmapTabView.swift */; };
 		70CF42222FE17EE400CF8F48 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CF42212FE17EE400CF8F48 /* MainTabView.swift */; };
 		70CF42242FE183B900CF8F48 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CF42232FE183B900CF8F48 /* Color+Hex.swift */; };
+		70CF42262FE18A5700CF8F48 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CF42252FE18A5700CF8F48 /* SplashView.swift */; };
 		AA0001010000000000000001 /* 3DWorkoutApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000001 /* 3DWorkoutApp.swift */; };
 		AA0002020000000000000002 /* WorkoutSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0002020000000000000002 /* WorkoutSession.swift */; };
 		AA0003030000000000000003 /* WorkoutRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0003030000000000000003 /* WorkoutRoute.swift */; };
@@ -52,6 +53,7 @@
 		70CF421F2FE17EB400CF8F48 /* HeatmapTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapTabView.swift; sourceTree = "<group>"; };
 		70CF42212FE17EE400CF8F48 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		70CF42232FE183B900CF8F48 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
+		70CF42252FE18A5700CF8F48 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		BB0001010000000000000001 /* 3DWorkoutApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 3DWorkoutApp.swift; sourceTree = "<group>"; };
 		BB0002020000000000000002 /* WorkoutSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSession.swift; sourceTree = "<group>"; };
 		BB0003030000000000000003 /* WorkoutRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutRoute.swift; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 				70CF421D2FE17E5400CF8F48 /* HeatmapMapView.swift */,
 				70CF421F2FE17EB400CF8F48 /* HeatmapTabView.swift */,
 				70CF42212FE17EE400CF8F48 /* MainTabView.swift */,
+				70CF42252FE18A5700CF8F48 /* SplashView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -281,6 +284,7 @@
 				AA0011110000000000000011 /* WorkoutDetailView.swift in Sources */,
 				70CF42162FE17DB300CF8F48 /* CachedHeatmapTrack.swift in Sources */,
 				AA0012120000000000000012 /* MapContainerView.swift in Sources */,
+				70CF42262FE18A5700CF8F48 /* SplashView.swift in Sources */,
 				AA0013130000000000000013 /* AnimatedMapView.swift in Sources */,
 				AA0014140000000000000014 /* MetricsOverlayView.swift in Sources */,
 				AA0015150000000000000015 /* CustomizationView.swift in Sources */,
