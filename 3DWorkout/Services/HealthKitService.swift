@@ -78,7 +78,7 @@ final class HealthKitService: ObservableObject {
             let q = HKSampleQuery(
                 sampleType: .workoutType(),
                 predicate: predicate,
-                limit: 100,
+                limit: HKObjectQueryNoLimit,
                 sortDescriptors: [sort]
             ) { _, samples, error in
                 if let error { cont.resume(throwing: error); return }

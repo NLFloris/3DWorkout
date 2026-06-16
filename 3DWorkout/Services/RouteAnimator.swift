@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import QuartzCore
 import Combine
 
 enum AnimationSpeed: Double, CaseIterable, Identifiable, Codable {
@@ -24,24 +25,17 @@ final class RouteAnimator: ObservableObject {
     var animationSpeed: AnimationSpeed = .oneX
 
     private(set) var route: WorkoutRoute?
-    private var timer: Timer?
-    private var lastTickDate: Date?
-    private var smoothedHeading: Double = 0
+    private var displayLink: CADisplayLink?
+    private var displayLinkProxy: DisplayLinkProxy?
+    private var lastTickTimestamp: CFTimeInterval = 0
+
+    // Smoothed heading is updated inside tick() so reads from the camera are
+    // side-effect free.
+    private(set) var currentHeading: CLLocationDirection = 0
 
     var currentCoordinate: CLLocationCoordinate2D? {
         guard let route, currentPointIndex < route.points.count else { return nil }
         return route.points[currentPointIndex].coordinate
-    }
-
-    var currentHeading: CLLocationDirection {
-        guard let route else { return smoothedHeading }
-        let lookahead = min(currentPointIndex + 5, route.points.count - 1)
-        guard lookahead > currentPointIndex else { return smoothedHeading }
-        let raw = bearing(from: route.points[currentPointIndex], to: route.points[lookahead])
-        // Exponential smoothing to avoid jitter on dense GPS tracks
-        let diff = ((raw - smoothedHeading) + 540).truncatingRemainder(dividingBy: 360) - 180
-        smoothedHeading = (smoothedHeading + diff * 0.15 + 360).truncatingRemainder(dividingBy: 360)
-        return smoothedHeading
     }
 
     var currentTimestamp: Date? {
@@ -54,32 +48,48 @@ final class RouteAnimator: ObservableObject {
         self.route = route
         currentPointIndex = 0
         progress = 0
-        smoothedHeading = 0
+        currentHeading = 0
+        updateHeading()
     }
 
     func play() {
         guard let route, !route.points.isEmpty else { return }
         if currentPointIndex >= route.points.count - 1 { seek(to: 0) }
         isPlaying = true
-        lastTickDate = Date()
-        let t = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.tick() }
+        lastTickTimestamp = 0
+
+        // CADisplayLink syncs to the display refresh and lets the system batch
+        // redraws; far more energy-efficient than a 30 Hz Timer.
+        let proxy = DisplayLinkProxy { [weak self] link in
+            self?.tick(timestamp: link.timestamp)
         }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
+        let link = CADisplayLink(target: proxy, selector: #selector(DisplayLinkProxy.fire(_:)))
+        if #available(iOS 15.0, *) {
+            // Cap at 30 fps — adequate for a moving dot and halves wakeups on
+            // 60/120 Hz displays.
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
+        } else {
+            link.preferredFramesPerSecond = 30
+        }
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+        displayLinkProxy = proxy
     }
 
     func pause() {
-        timer?.invalidate()
-        timer = nil
+        displayLink?.invalidate()
+        displayLink = nil
+        displayLinkProxy = nil
         isPlaying = false
-        lastTickDate = nil
+        lastTickTimestamp = 0
     }
 
     func stop() {
         pause()
         currentPointIndex = 0
         progress = 0
+        currentHeading = 0
+        updateHeading()
     }
 
     func seek(to fraction: Double) {
@@ -87,15 +97,20 @@ final class RouteAnimator: ObservableObject {
         let clamped = max(0, min(1, fraction))
         currentPointIndex = Int(clamped * Double(route.points.count - 1))
         progress = clamped
+        updateHeading()
     }
 
     // MARK: - Private
 
-    private func tick() {
+    private func tick(timestamp: CFTimeInterval) {
         guard let route, isPlaying, route.points.count > 1 else { return }
-        let now = Date()
-        let elapsed = lastTickDate.map { now.timeIntervalSince($0) } ?? (1.0 / 30.0)
-        lastTickDate = now
+        let elapsed: TimeInterval
+        if lastTickTimestamp == 0 {
+            elapsed = 1.0 / 30.0
+        } else {
+            elapsed = timestamp - lastTickTimestamp
+        }
+        lastTickTimestamp = timestamp
 
         let totalDuration = route.points.last!.timestamp.timeIntervalSince(route.points.first!.timestamp)
         guard totalDuration > 0 else { pause(); return }
@@ -105,10 +120,25 @@ final class RouteAnimator: ObservableObject {
         let advance = max(1, Int(advanceFraction * Double(route.points.count)))
         let newIndex = min(currentPointIndex + advance, route.points.count - 1)
 
-        currentPointIndex = newIndex
-        progress = Double(newIndex) / Double(route.points.count - 1)
+        if newIndex != currentPointIndex {
+            currentPointIndex = newIndex
+            progress = Double(newIndex) / Double(route.points.count - 1)
+            updateHeading()
+        }
 
         if newIndex >= route.points.count - 1 { pause() }
+    }
+
+    /// Exponentially-smoothed heading from the current position towards a small
+    /// lookahead. Called only inside tick()/seek()/load() — never as a side
+    /// effect of a property read.
+    private func updateHeading() {
+        guard let route, route.points.count > 1 else { return }
+        let lookahead = min(currentPointIndex + 5, route.points.count - 1)
+        guard lookahead > currentPointIndex else { return }
+        let raw = bearing(from: route.points[currentPointIndex], to: route.points[lookahead])
+        let diff = ((raw - currentHeading) + 540).truncatingRemainder(dividingBy: 360) - 180
+        currentHeading = (currentHeading + diff * 0.15 + 360).truncatingRemainder(dividingBy: 360)
     }
 
     private func bearing(from: RoutePoint, to: RoutePoint) -> Double {
@@ -118,5 +148,17 @@ final class RouteAnimator: ObservableObject {
         let y = sin(dLon) * cos(lat2)
         let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
         return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+    }
+}
+
+/// CADisplayLink retains its target. A proxy avoids a retain cycle on the
+/// animator and lets the closure capture `self` weakly.
+private final class DisplayLinkProxy {
+    private let handler: (CADisplayLink) -> Void
+    init(handler: @escaping (CADisplayLink) -> Void) {
+        self.handler = handler
+    }
+    @objc func fire(_ link: CADisplayLink) {
+        handler(link)
     }
 }

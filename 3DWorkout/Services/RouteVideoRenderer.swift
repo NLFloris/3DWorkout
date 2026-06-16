@@ -196,6 +196,17 @@ final class RouteVideoRenderer {
         return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
     }
 
+    /// Great-circle distance in meters between two coordinates (Haversine).
+    private func metersBetween(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
+        let lat1 = a.latitude * .pi / 180
+        let lat2 = b.latitude * .pi / 180
+        let dLat = lat2 - lat1
+        let dLon = (b.longitude - a.longitude) * .pi / 180
+        let h = sin(dLat / 2) * sin(dLat / 2)
+            + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
+        return 2 * 6_371_000 * atan2(sqrt(h), sqrt(1 - h))
+    }
+
     // MARK: - Snapshotting
 
     private func makeSnapshot(center: CLLocationCoordinate2D, heading: Double,
@@ -241,13 +252,21 @@ final class RouteVideoRenderer {
             let cg = rendererCtx.cgContext
             snapshot.image.draw(in: CGRect(origin: .zero, size: size))
 
-            // Revealed route polyline.
+            // Revealed route polyline. GPS gaps (signal loss, tunnels, paused
+            // recording) can leave neighbouring samples hundreds of meters
+            // apart; drawing a straight line between them produces the long
+            // off-axis bands the user reported. Skip any segment whose
+            // straight-line distance exceeds a generous gap threshold.
             cg.setLineCap(.round)
             cg.setLineJoin(.round)
             cg.setLineWidth(max(3, input.lineWidth * 1.6))
+            let gapThresholdMeters = 200.0
             for j in 0..<revealed {
-                let p0 = snapshot.point(for: data.coords[j])
-                let p1 = snapshot.point(for: data.coords[j + 1])
+                let c0 = data.coords[j]
+                let c1 = data.coords[j + 1]
+                if metersBetween(c0, c1) > gapThresholdMeters { continue }
+                let p0 = snapshot.point(for: c0)
+                let p1 = snapshot.point(for: c1)
                 cg.setStrokeColor(data.colors[min(j, data.colors.count - 1)])
                 cg.beginPath()
                 cg.move(to: p0)

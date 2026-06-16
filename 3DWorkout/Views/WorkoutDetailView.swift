@@ -52,7 +52,7 @@ struct WorkoutDetailView: View {
                 } label: {
                     Label(
                         viewModel.is3DMode ? "Switch to 2D" : "Switch to 3D",
-                        systemImage: viewModel.is3DMode ? "square.2layers.3d" : "square.3layers.3d"
+                        systemImage: viewModel.is3DMode ? "square.2.layers.3d" : "square.3.layers.3d"
                     )
                     .labelStyle(.iconOnly)
                 }

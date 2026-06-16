@@ -49,7 +49,14 @@ struct MapContainerView: View {
 
 private struct PlaybackPanel: View {
     @ObservedObject var viewModel: WorkoutDetailViewModel
+    @ObservedObject var animator: RouteAnimator
     @Binding var showElevation: Bool
+
+    init(viewModel: WorkoutDetailViewModel, showElevation: Binding<Bool>) {
+        self._viewModel = ObservedObject(wrappedValue: viewModel)
+        self._animator = ObservedObject(wrappedValue: viewModel.animator)
+        self._showElevation = showElevation
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -61,8 +68,8 @@ private struct PlaybackPanel: View {
                     .frame(width: 38, alignment: .trailing)
 
                 ProgressScrubber(progress: Binding(
-                    get: { viewModel.animator.progress },
-                    set: { viewModel.animator.seek(to: $0) }
+                    get: { animator.progress },
+                    set: { animator.seek(to: $0) }
                 ))
 
                 Text(totalLabel)
@@ -76,7 +83,7 @@ private struct PlaybackPanel: View {
                 HStack(spacing: 12) {
                     // Stop
                     CircleButton(icon: "stop.fill", size: 36, tint: .secondary) {
-                        viewModel.animator.stop()
+                        animator.stop()
                     }
                     // Elevation profile toggle
                     CircleButton(
@@ -93,14 +100,12 @@ private struct PlaybackPanel: View {
 
                 // Play / Pause (hero button)
                 CircleButton(
-                    icon: viewModel.animator.isPlaying ? "pause.fill" : "play.fill",
+                    icon: animator.isPlaying ? "pause.fill" : "play.fill",
                     size: 56,
                     tint: .white,
                     fill: .red
                 ) {
-                    viewModel.animator.isPlaying
-                        ? viewModel.animator.pause()
-                        : viewModel.animator.play()
+                    animator.isPlaying ? animator.pause() : animator.play()
                 }
 
                 // Speed
@@ -128,7 +133,7 @@ private struct PlaybackPanel: View {
 
     private var elapsedLabel: String {
         guard let route = viewModel.route, !route.points.isEmpty else { return "0:00" }
-        let idx = viewModel.animator.currentPointIndex
+        let idx = animator.currentPointIndex
         let t = route.points[idx].timestamp.timeIntervalSince(route.points[0].timestamp)
         return format(t)
     }

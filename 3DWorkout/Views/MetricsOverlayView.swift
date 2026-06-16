@@ -2,11 +2,19 @@ import SwiftUI
 
 struct MetricsOverlayView: View {
     @ObservedObject var viewModel: WorkoutDetailViewModel
+    // Observing the animator separately means this view only rebuilds when
+    // playback advances — not when unrelated view-model fields change.
+    @ObservedObject var animator: RouteAnimator
     @EnvironmentObject var settings: AppSettings
+
+    init(viewModel: WorkoutDetailViewModel) {
+        self._viewModel = ObservedObject(wrappedValue: viewModel)
+        self._animator = ObservedObject(wrappedValue: viewModel.animator)
+    }
 
     private var live: LiveMetrics {
         guard let route = viewModel.route, !route.points.isEmpty else { return .empty }
-        let idx = min(viewModel.animator.currentPointIndex, route.points.count - 1)
+        let idx = min(animator.currentPointIndex, route.points.count - 1)
         let pt = route.points[idx]
         return LiveMetrics(
             heartRate: viewModel.metrics?.heartRate(at: pt.timestamp),

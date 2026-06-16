@@ -2,7 +2,6 @@ import Foundation
 import SwiftUI
 import UIKit
 import MapKit
-import Combine
 
 enum GradientMetric: String, CaseIterable, Identifiable, Codable {
     case pace, heartRate, elevation, speed, solid
@@ -43,7 +42,9 @@ enum MapDisplayStyle: String, CaseIterable, Identifiable, Codable {
 final class WorkoutDetailViewModel: ObservableObject {
     let session: WorkoutSession
 
-    @Published var animator = RouteAnimator()
+    // Not @Published — views that need playback state observe the animator
+    // directly so view-model observers don't redraw on every animation tick.
+    let animator = RouteAnimator()
     @Published private(set) var route: WorkoutRoute?
     @Published private(set) var metrics: WorkoutMetrics?
     @Published private(set) var isLoading = false
@@ -63,18 +64,12 @@ final class WorkoutDetailViewModel: ObservableObject {
     private var cachedColors: (metric: GradientMetric, colors: [UIColor])?
     private let healthKitService: HealthKitService
     private let store: WorkoutStore
-    private var cancellables = Set<AnyCancellable>()
 
     init(session: WorkoutSession, healthKitService: HealthKitService, store: WorkoutStore) {
         self.session = session
         self.healthKitService = healthKitService
         self.store = store
         animator.animationSpeed = animationSpeed
-        // Forward animator changes (isPlaying, currentPointIndex, progress) so
-        // SwiftUI views observing this view model re-render on every tick.
-        animator.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &cancellables)
     }
 
     var computedSegmentColors: [UIColor] {
