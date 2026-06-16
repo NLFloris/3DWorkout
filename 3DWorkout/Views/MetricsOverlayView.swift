@@ -24,6 +24,7 @@ struct MetricsOverlayView: View {
             } else {
                 MetricPill(icon: "speedometer", color: .blue, value: live.kmhString, unit: "km/h")
             }
+            MetricPill(icon: "speedometer",   color: .blue,   value: live.kmhString,  unit: "km/h")
             divider
             MetricPill(icon: "location.fill", color: .orange, value: live.distString, unit: "km")
             divider
@@ -87,4 +88,18 @@ private struct LiveMetrics {
         let sec = Int(secPerKm) % 60
         return String(format: "%d:%02d", m, sec)
     }
+}
+
+private struct LiveMetrics {
+    var heartRate: Double? = nil
+    var elevation: Double? = nil
+    var speed: Double? = nil     // m/s
+    var distance: Double? = nil  // meters
+
+    static let empty = LiveMetrics()
+
+    var hrString:   String { heartRate.map { "\(Int($0))" } ?? "--" }
+    var kmhString:  String { speed.map { String(format: "%.1f", $0 * 3.6) } ?? "--" }
+    var distString: String { distance.map { String(format: "%.2f", $0 / 1000) } ?? "--" }
+    var elevString: String { elevation.map { "\(Int($0))" } ?? "--" }
 }
