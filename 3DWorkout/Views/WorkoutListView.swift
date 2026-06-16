@@ -5,9 +5,11 @@ struct WorkoutListView: View {
     @EnvironmentObject var settings: AppSettings
     @StateObject private var viewModel: WorkoutListViewModel
     @State private var showSettings = false
+    private let store: WorkoutStore
 
-    init(healthKitService: HealthKitService) {
-        _viewModel = StateObject(wrappedValue: WorkoutListViewModel(healthKitService: healthKitService))
+    init(healthKitService: HealthKitService, store: WorkoutStore) {
+        self.store = store
+        _viewModel = StateObject(wrappedValue: WorkoutListViewModel(healthKitService: healthKitService, store: store))
     }
 
     var body: some View {
@@ -68,7 +70,7 @@ struct WorkoutListView: View {
                 summaryHeader
                 ForEach(viewModel.workouts) { session in
                     NavigationLink {
-                        WorkoutDetailView(session: session, healthKitService: healthKitService)
+                        WorkoutDetailView(session: session, healthKitService: healthKitService, store: store)
                     } label: {
                         WorkoutCard(session: session)
                     }

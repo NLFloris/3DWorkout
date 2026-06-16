@@ -3,16 +3,18 @@ import SwiftUI
 struct WorkoutDetailView: View {
     let session: WorkoutSession
     let healthKitService: HealthKitService
+    let store: WorkoutStore
 
     @EnvironmentObject var settings: AppSettings
     @StateObject private var viewModel: WorkoutDetailViewModel
     @State private var showCustomization = false
 
-    init(session: WorkoutSession, healthKitService: HealthKitService) {
+    init(session: WorkoutSession, healthKitService: HealthKitService, store: WorkoutStore) {
         self.session = session
         self.healthKitService = healthKitService
+        self.store = store
         _viewModel = StateObject(wrappedValue: WorkoutDetailViewModel(
-            session: session, healthKitService: healthKitService
+            session: session, healthKitService: healthKitService, store: store
         ))
     }
 

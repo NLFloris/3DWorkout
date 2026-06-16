@@ -28,6 +28,8 @@
 		AA0022220000000000000022 /* UnitSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0022220000000000000022 /* UnitSettings.swift */; };
 		AA0023230000000000000023 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0023230000000000000023 /* SettingsView.swift */; };
 		AA0024240000000000000024 /* ElevationProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0024240000000000000024 /* ElevationProfileView.swift */; };
+		AA0025250000000000000025 /* CachedWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0025250000000000000025 /* CachedWorkout.swift */; };
+		AA0026260000000000000026 /* WorkoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0026260000000000000026 /* WorkoutStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -55,6 +57,8 @@
 		BB0022220000000000000022 /* UnitSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitSettings.swift; sourceTree = "<group>"; };
 		BB0023230000000000000023 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		BB0024240000000000000024 /* ElevationProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfileView.swift; sourceTree = "<group>"; };
+		BB0025250000000000000025 /* CachedWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedWorkout.swift; sourceTree = "<group>"; };
+		BB0026260000000000000026 /* WorkoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +105,7 @@
 				BB0003030000000000000003 /* WorkoutRoute.swift */,
 				BB0004040000000000000004 /* WorkoutMetrics.swift */,
 				BB0022220000000000000022 /* UnitSettings.swift */,
+				BB0025250000000000000025 /* CachedWorkout.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -110,6 +115,7 @@
 			children = (
 				BB0005050000000000000005 /* HealthKitService.swift */,
 				BB0006060000000000000006 /* RouteAnimator.swift */,
+				BB0026260000000000000026 /* WorkoutStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -243,6 +249,8 @@
 				AA0022220000000000000022 /* UnitSettings.swift in Sources */,
 				AA0023230000000000000023 /* SettingsView.swift in Sources */,
 				AA0024240000000000000024 /* ElevationProfileView.swift in Sources */,
+				AA0025250000000000000025 /* CachedWorkout.swift in Sources */,
+				AA0026260000000000000026 /* WorkoutStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

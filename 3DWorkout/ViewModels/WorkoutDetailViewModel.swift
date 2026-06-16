@@ -62,11 +62,13 @@ final class WorkoutDetailViewModel: ObservableObject {
 
     private var cachedColors: (metric: GradientMetric, colors: [UIColor])?
     private let healthKitService: HealthKitService
+    private let store: WorkoutStore
     private var cancellables = Set<AnyCancellable>()
 
-    init(session: WorkoutSession, healthKitService: HealthKitService) {
+    init(session: WorkoutSession, healthKitService: HealthKitService, store: WorkoutStore) {
         self.session = session
         self.healthKitService = healthKitService
+        self.store = store
         animator.animationSpeed = animationSpeed
         // Forward animator changes (isPlaying, currentPointIndex, progress) so
         // SwiftUI views observing this view model re-render on every tick.
@@ -88,20 +90,43 @@ final class WorkoutDetailViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+
+        let uuid = session.hkWorkoutUUID
+
+        // Serve from cache when available.
+        if let cachedMetrics = store.cachedMetrics(for: uuid) {
+            metrics = cachedMetrics
+        }
+        let cachedRoute = store.cachedRoute(for: uuid)
+        if cachedRoute.fetched, let r = cachedRoute.route {
+            applyRoute(r)
+        }
+
         do {
-            async let routeResult = healthKitService.fetchRoute(for: session)
-            async let metricsResult = healthKitService.fetchMetrics(for: session)
-            let (r, m) = try await (routeResult, metricsResult)
-            metrics = m
-            if let r {
-                route = r
-                routeID = UUID()
-                cachedColors = nil
-                animator.load(route: r)
+            // Fetch metrics from HealthKit only if not cached.
+            if metrics == nil {
+                let m = try await healthKitService.fetchMetrics(for: session)
+                metrics = m
+                store.storeMetrics(m, for: uuid)
+            }
+
+            // Fetch the route from HealthKit only if it hasn't been fetched before.
+            if !cachedRoute.fetched {
+                let r = try await healthKitService.fetchRoute(for: session)
+                store.storeRoute(r, for: uuid)
+                if let r { applyRoute(r) }
             }
         } catch {
-            errorMessage = error.localizedDescription
+            // Don't clobber a successfully cached route with a transient error.
+            if route == nil { errorMessage = error.localizedDescription }
         }
+    }
+
+    private func applyRoute(_ r: WorkoutRoute) {
+        route = r
+        routeID = UUID()
+        cachedColors = nil
+        animator.load(route: r)
     }
 
     func cycleSpeed() {

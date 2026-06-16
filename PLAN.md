@@ -217,4 +217,5 @@ Not built now. The key constraint: **Strava OAuth requires a `client_secret` tha
 - ✅ **Units foundation** (`UnitSettings.swift`: `UnitPreference`, `UnitFormatter`, `AppSettings`) + global **Settings** screen with the metric/imperial picker. All distance/elevation/speed/pace displays now route through the formatter.
 - ✅ **Feature 2 — Elevation profile chart** (`ElevationProfileView.swift`, Swift Charts): synced rule marker to playback, drag-to-seek, units-aware, toggle in the playback panel.
 - 🔧 Fixed a pre-existing compile blocker in `MetricsOverlayView.swift` (duplicated `LiveMetrics` struct + duplicate speed pill from an earlier merge).
-- ⏭️ Next: Phase 0a SwiftData store, then Features 1 (video), 4 (PRs), 5 (ghost), 4-heatmap.
+- ✅ **Phase 0a — SwiftData store** (`CachedWorkout.swift` `@Model`, `WorkoutStore.swift`): caches workout metadata + lazily-filled route/metrics blobs keyed by HealthKit UUID. The list now loads instantly from disk then refreshes from HealthKit; routes/metrics are cached on first open instead of refetched every time. Schema reserves `segmentsData` (Feature 4) and `routeFingerprint` (Feature 5) for forward compatibility. `WorkoutStore` is injected from the app through both view models.
+- ⏭️ Next: Feature 1 (video export), then Feature 4 (Segment PRs), Feature 5 (ghost runner), heatmap.
