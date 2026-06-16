@@ -39,6 +39,12 @@ struct HeatmapTabView: View {
             .padding(.top, 6)
         }
         .task {
+            // Give the tab-switch animation + first MapView layout a frame
+            // to commit before kicking off heavy work (HealthKit fetches and
+            // SwiftData inserts). Without this, iOS's gesture recognizer can
+            // log "system gesture gate timed out" while the main actor is
+            // briefly busy.
+            try? await Task.sleep(nanoseconds: 200_000_000)
             locationService.requestLocation()
             indexer.startIfNeeded()
         }

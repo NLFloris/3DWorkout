@@ -53,9 +53,20 @@ struct HeatmapMapView: UIViewRepresentable {
             if viewModelChanged {
                 cancellables.removeAll()
                 viewModel.$tracks
-                    .sink { [weak self] tracks in self?.syncOverlays(tracks: tracks) }
+                    // Hop off the gesture/layout pass before mutating
+                    // overlays; otherwise the first sync can block the main
+                    // thread long enough that iOS gives up on touch gestures
+                    // (system gesture gate timed out).
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] tracks in
+                        DispatchQueue.main.async {
+                            self?.syncOverlays(tracks: tracks)
+                        }
+                    }
                     .store(in: &cancellables)
-                syncOverlays(tracks: viewModel.tracks)
+                DispatchQueue.main.async { [weak self] in
+                    self?.syncOverlays(tracks: viewModel.tracks)
+                }
             }
             if settingsChanged {
                 refreshRendererStyles()
