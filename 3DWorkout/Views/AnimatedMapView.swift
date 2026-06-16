@@ -35,16 +35,15 @@ struct AnimatedMapView: UIViewRepresentable {
         weak var mapView: MKMapView?
         private var cancellables = Set<AnyCancellable>()
 
-        // All segment polylines, built once per route and added to the map a
-        // single time. Reveal progress is communicated to the renderers via
-        // `revealedSegmentIndex` and `setNeedsDisplay()` calls — never by
-        // adding or removing overlays mid-playback.
-        private var segmentOverlays: [MKPolyline] = []
+        // Single overlay for the whole route; a custom renderer paints every
+        // segment in one Core Graphics pass. This avoids the per-segment
+        // `MKPolylineRenderer` cache explosion that previously pushed memory
+        // over 1 GB when the line-width slider was dragged.
+        private var routeOverlay: MKPolyline?
+        private weak var routeRenderer: GradientRouteRenderer?
+        private var revealedSegmentIndex: Int = -1
         private var segmentColors: [UIColor] = []
-        private var segmentRenderers: [Int: RouteSegmentRenderer] = [:]
-
-        // Highest segment index that should currently be drawn. -1 = none.
-        fileprivate var revealedSegmentIndex: Int = -1
+        private var routeCoords: [CLLocationCoordinate2D] = []
 
         private var lastRouteID: UUID?
         private var lastGradientMetric: GradientMetric?
@@ -52,9 +51,7 @@ struct AnimatedMapView: UIViewRepresentable {
         private var lastLineWidth: CGFloat?
         private var hasFramed = false
 
-        // Skip camera updates that would move the camera by less than these
-        // thresholds — MapKit's layout pass for sub-meter / sub-degree changes
-        // is wasted work and causes the marker/line desync.
+        // Sub-threshold camera updates are filtered to spare MapKit a relayout.
         private var lastCameraCoord: CLLocationCoordinate2D?
         private var lastCameraHeading: CLLocationDirection = .nan
         private var lastCameraDistance: Double = .nan
@@ -64,10 +61,8 @@ struct AnimatedMapView: UIViewRepresentable {
         private let distanceEpsilonM: Double = 1.0
         private let pitchEpsilonDeg: Double = 0.5
 
-        // Live position dot — uses an MKAnnotation so MapKit renders it above
-        // the polyline overlays (annotations are always on top of overlays).
-        // The KVO-driven coordinate animation that previously caused the
-        // "two dots" lag is suppressed inside `updatePositionAnnotation`.
+        // Live position marker as an MKAnnotation — annotations render above
+        // overlays, so the dot is always on top of the polyline head.
         private let positionAnnotation = CurrentPositionAnnotation()
         private var positionAnnotationAdded = false
 
@@ -75,7 +70,6 @@ struct AnimatedMapView: UIViewRepresentable {
             self.viewModel = viewModel
             super.init()
 
-            // Drive camera + segment reveal from animator ticks via Combine.
             viewModel.animator.$currentPointIndex
                 .removeDuplicates()
                 .sink { [weak self] index in
@@ -87,12 +81,10 @@ struct AnimatedMapView: UIViewRepresentable {
                 .store(in: &cancellables)
         }
 
-        // Called from updateUIView – detect what changed and apply minimal updates
         func update(with viewModel: WorkoutDetailViewModel) {
             self.viewModel = viewModel
             guard let map = mapView else { return }
 
-            // Map type
             if lastMapStyle != viewModel.mapStyle {
                 map.mapType = viewModel.mapStyle.mkMapType
                 lastMapStyle = viewModel.mapStyle
@@ -103,11 +95,11 @@ struct AnimatedMapView: UIViewRepresentable {
             let widthChanged  = lastLineWidth != viewModel.lineWidth
 
             if routeChanged {
-                rebuildOverlays(on: map)
+                rebuildOverlay(on: map)
             } else if metricChanged {
                 refreshSegmentColors()
             } else if widthChanged {
-                refreshSegmentLineWidths()
+                refreshLineWidth()
             }
 
             updateCamera(on: map)
@@ -115,32 +107,28 @@ struct AnimatedMapView: UIViewRepresentable {
 
         // MARK: - Overlay lifecycle
 
-        private func rebuildOverlays(on map: MKMapView) {
-            map.removeOverlays(segmentOverlays)
-            segmentOverlays.removeAll(keepingCapacity: true)
-            segmentRenderers.removeAll(keepingCapacity: true)
+        private func rebuildOverlay(on map: MKMapView) {
+            if let old = routeOverlay {
+                map.removeOverlay(old)
+            }
+            routeOverlay = nil
+            routeRenderer = nil
             revealedSegmentIndex = -1
+            routeCoords = []
 
             guard let route = viewModel.route, route.points.count > 1 else { return }
 
             segmentColors = viewModel.computedSegmentColors
+            routeCoords = route.points.map(\.coordinate)
             lastRouteID = viewModel.routeID
             lastGradientMetric = viewModel.gradientMetric
             lastLineWidth = viewModel.lineWidth
 
-            var polylines: [MKPolyline] = []
-            polylines.reserveCapacity(route.points.count - 1)
-            for i in 0..<(route.points.count - 1) {
-                var coords = [route.points[i].coordinate, route.points[i + 1].coordinate]
-                let p = MKPolyline(coordinates: &coords, count: 2)
-                p.title = "\(i)"
-                polylines.append(p)
-            }
-            segmentOverlays = polylines
-            map.addOverlays(polylines, level: .aboveRoads)
+            var coords = routeCoords
+            let polyline = MKPolyline(coordinates: &coords, count: coords.count)
+            routeOverlay = polyline
+            map.addOverlay(polyline, level: .aboveRoads)
 
-            // When not animating, reveal the full route immediately so the static
-            // view looks correct.
             let initialPointIndex = viewModel.animator.isPlaying
                 ? viewModel.animator.currentPointIndex
                 : route.points.count - 1
@@ -154,47 +142,34 @@ struct AnimatedMapView: UIViewRepresentable {
             updatePositionAnnotation(on: map)
         }
 
-        /// Update strokeColors of existing renderers without rebuilding overlays.
+        /// Push fresh colors into the renderer and ask for one redraw.
         private func refreshSegmentColors() {
             lastGradientMetric = viewModel.gradientMetric
             segmentColors = viewModel.computedSegmentColors
-            for (idx, renderer) in segmentRenderers {
-                renderer.strokeColor = idx < segmentColors.count
-                    ? segmentColors[idx]
-                    : .systemBlue
-                renderer.setNeedsDisplay()
-            }
+            routeRenderer?.segmentColors = segmentColors
+            routeRenderer?.setNeedsDisplay()
         }
 
-        /// Update lineWidth of existing renderers without rebuilding overlays.
-        private func refreshSegmentLineWidths() {
+        /// Update the renderer's line width once and ask for one redraw —
+        /// regardless of how many segments the route has.
+        private func refreshLineWidth() {
             lastLineWidth = viewModel.lineWidth
-            for renderer in segmentRenderers.values {
-                renderer.lineWidth = viewModel.lineWidth
-                renderer.setNeedsDisplay()
-            }
+            routeRenderer?.lineWidth = viewModel.lineWidth
+            routeRenderer?.setNeedsDisplay()
         }
 
         // MARK: - Reveal progress
 
-        /// Translates a route *point* index (animator state) into the corresponding
-        /// segment index and only redraws the renderers that actually changed state.
         private func applyRevealedPointIndex(_ pointIndex: Int) {
-            // Segment i spans point i → point i+1. After reaching point K we have
-            // revealed segments 0…K-1.
-            let target = min(pointIndex - 1, segmentOverlays.count - 1)
+            // Segment i connects point i → point i+1. After reaching point K
+            // segments 0…K-1 are revealed.
+            let segmentCount = max(0, routeCoords.count - 1)
+            let target = min(pointIndex - 1, segmentCount - 1)
             let newRevealed = max(-1, target)
-            let oldRevealed = revealedSegmentIndex
-            guard newRevealed != oldRevealed else { return }
+            guard newRevealed != revealedSegmentIndex else { return }
             revealedSegmentIndex = newRevealed
-
-            let lo = min(oldRevealed, newRevealed) + 1
-            let hi = max(oldRevealed, newRevealed)
-            if lo <= hi {
-                for i in lo...hi {
-                    segmentRenderers[i]?.setNeedsDisplay()
-                }
-            }
+            routeRenderer?.revealedSegmentIndex = newRevealed
+            routeRenderer?.setNeedsDisplay()
         }
 
         // MARK: - Position annotation
@@ -203,9 +178,6 @@ struct AnimatedMapView: UIViewRepresentable {
             guard let coord = viewModel.animator.currentCoordinate,
                   CLLocationCoordinate2DIsValid(coord) else { return }
 
-            // 1. Update the coordinate inside a transaction with disabled
-            //    implicit actions so MapKit doesn't kick off its own
-            //    Core Animation tween between old and new positions.
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             positionAnnotation.coordinate = coord
@@ -216,10 +188,6 @@ struct AnimatedMapView: UIViewRepresentable {
                 positionAnnotationAdded = true
             }
 
-            // 2. Then explicitly snap the annotation view's centre to the
-            //    target screen position and cancel any animation MapKit may
-            //    still have queued — this is what truly kills the "trailing
-            //    dot" effect at high playback speeds.
             if let view = map.view(for: positionAnnotation) {
                 let target = map.convert(coord, toPointTo: map)
                 view.layer.removeAllAnimations()
@@ -235,8 +203,6 @@ struct AnimatedMapView: UIViewRepresentable {
             let distance = viewModel.cameraDistance
             let pitch = viewModel.is3DMode ? viewModel.pitch : 0
 
-            // Filter sub-threshold updates so MapKit isn't asked to re-layout
-            // for sub-meter / sub-degree changes that aren't visible anyway.
             if let last = lastCameraCoord,
                !lastCameraHeading.isNaN,
                !lastCameraDistance.isNaN,
@@ -255,9 +221,6 @@ struct AnimatedMapView: UIViewRepresentable {
                 pitch: CGFloat(pitch),
                 heading: heading
             )
-            // While playing we tick frequently; animating each setCamera call
-            // would queue ~0.25 s animations that lag behind the dot. Snap
-            // instead. Animate only for user-driven changes (scrubbing, settings).
             map.setCamera(camera, animated: !viewModel.animator.isPlaying)
 
             lastCameraCoord = coord
@@ -275,17 +238,15 @@ struct AnimatedMapView: UIViewRepresentable {
 
         func mapView(_ map: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             guard let polyline = overlay as? MKPolyline,
-                  let idxStr = polyline.title,
-                  let idx = Int(idxStr) else {
+                  polyline === routeOverlay else {
                 return MKOverlayRenderer(overlay: overlay)
             }
-            let renderer = RouteSegmentRenderer(overlay: polyline)
-            renderer.coordinator = self
-            renderer.strokeColor = idx < segmentColors.count ? segmentColors[idx] : .systemBlue
+            let renderer = GradientRouteRenderer(overlay: polyline)
+            renderer.coords = routeCoords
+            renderer.segmentColors = segmentColors
+            renderer.revealedSegmentIndex = revealedSegmentIndex
             renderer.lineWidth = viewModel.lineWidth
-            renderer.lineCap = .round
-            renderer.lineJoin = .round
-            segmentRenderers[idx] = renderer
+            routeRenderer = renderer
             return renderer
         }
 
@@ -296,46 +257,68 @@ struct AnimatedMapView: UIViewRepresentable {
                 for: annotation
             )
         }
-
-        // The coordinator's current reveal state is read by RouteSegmentRenderer.
-        fileprivate func shouldDrawSegment(_ index: Int) -> Bool {
-            index <= revealedSegmentIndex
-        }
     }
 }
 
-// MARK: - Segment Renderer
+// MARK: - Gradient Route Renderer
 
-/// MKPolylineRenderer that suppresses drawing for segments past the current
-/// playback position. This lets us add every segment to the map once at load
-/// and reveal progressively without `addOverlays(_:)` churn on every tick.
-private final class RouteSegmentRenderer: MKPolylineRenderer {
-    let segmentIndex: Int
-    weak var coordinator: AnimatedMapView.Coordinator?
+/// A single `MKOverlayRenderer` that draws every revealed segment of the route
+/// in one pass. Replaces the per-segment `MKPolylineRenderer` approach which
+/// allocated thousands of independently-cached layers — the slider could push
+/// memory north of 1 GB by invalidating all those caches at 60 Hz.
+///
+/// The renderer keeps the path data + colours in plain arrays. Reveal index,
+/// colours and line width all live as `var` properties so the coordinator can
+/// mutate them and trigger a single `setNeedsDisplay()` per change.
+private final class GradientRouteRenderer: MKOverlayRenderer {
+    var coords: [CLLocationCoordinate2D] = []
+    var segmentColors: [UIColor] = []
+    var revealedSegmentIndex: Int = -1
+    var lineWidth: CGFloat = 4.0
 
-    override init(overlay: MKOverlay) {
-        if let polyline = overlay as? MKPolyline,
-           let idxStr = polyline.title,
-           let idx = Int(idxStr) {
-            self.segmentIndex = idx
-        } else {
-            self.segmentIndex = -1
+    override func draw(_ mapRect: MKMapRect,
+                       zoomScale: MKZoomScale,
+                       in context: CGContext) {
+        guard revealedSegmentIndex >= 0, coords.count > 1 else { return }
+        // MapKit's context is in map-point space; scaling the stroke by
+        // 1/zoomScale keeps the line a constant *screen* width regardless
+        // of zoom level.
+        let strokeWidth = lineWidth / CGFloat(zoomScale)
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.setLineWidth(strokeWidth)
+
+        // Clip work to the tile MapKit is asking us to paint, with a margin
+        // so segments straddling the edge still get drawn.
+        let padded = mapRect.insetBy(dx: -mapRect.size.width * 0.1,
+                                     dy: -mapRect.size.height * 0.1)
+
+        let lastIdx = min(revealedSegmentIndex, coords.count - 2)
+        for i in 0...lastIdx {
+            let mp0 = MKMapPoint(coords[i])
+            let mp1 = MKMapPoint(coords[i + 1])
+            let segRect = MKMapRect(
+                x: min(mp0.x, mp1.x),
+                y: min(mp0.y, mp1.y),
+                width: abs(mp0.x - mp1.x),
+                height: abs(mp0.y - mp1.y)
+            )
+            guard padded.intersects(segRect) else { continue }
+
+            let p0 = self.point(for: mp0)
+            let p1 = self.point(for: mp1)
+            let color = i < segmentColors.count ? segmentColors[i] : UIColor.systemBlue
+            context.beginPath()
+            context.move(to: p0)
+            context.addLine(to: p1)
+            context.setStrokeColor(color.cgColor)
+            context.strokePath()
         }
-        super.init(overlay: overlay)
-    }
-
-    override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
-        guard coordinator?.shouldDrawSegment(segmentIndex) ?? false else { return }
-        super.draw(mapRect, zoomScale: zoomScale, in: context)
     }
 }
 
 // MARK: - Position Annotation
 
-/// MKAnnotation that drives the live playback marker. The `dynamic` coordinate
-/// is KVO-observed by MapKit; coordinate writes are wrapped in a
-/// `CATransaction.setDisableActions(true)` block to suppress the implicit
-/// position animation.
 private final class CurrentPositionAnnotation: NSObject, MKAnnotation {
     private var _coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
     @objc dynamic var coordinate: CLLocationCoordinate2D {
@@ -348,10 +331,6 @@ private final class CurrentPositionAnnotation: NSObject, MKAnnotation {
     }
 }
 
-/// Annotation view that opts out of every implicit Core Animation that MapKit
-/// might attach to its position — together with the coordinator's
-/// `view.layer.removeAllAnimations()` + `UIView.performWithoutAnimation`
-/// centre snap, the dot stays glued to the polyline head.
 private final class CurrentPositionAnnotationView: MKAnnotationView {
     static let reuseID = "currentPositionDot"
 
@@ -377,21 +356,16 @@ private final class CurrentPositionAnnotationView: MKAnnotationView {
         layer.shadowOffset = .zero
         canShowCallout = false
         isUserInteractionEnabled = false
-        // Disable implicit animations on position / bounds — MapKit otherwise
-        // animates these whenever the annotation's coordinate changes.
         layer.actions = [
             "position": NSNull(),
             "bounds": NSNull(),
             "transform": NSNull(),
             "opacity": NSNull()
         ]
-        // Annotation views sit on top of overlays in MKAnnotationContainerView,
-        // but lift the z-position too in case of any sibling re-ordering.
         layer.zPosition = 1000
     }
 
     override func setSelected(_ selected: Bool, animated: Bool) {
-        // Always skip MapKit's selection animation.
         super.setSelected(selected, animated: false)
     }
 }

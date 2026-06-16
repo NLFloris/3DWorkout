@@ -21,24 +21,22 @@ struct HeatmapTabView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .top) {
-                HeatmapMapView(viewModel: viewModel,
-                               settings: settings,
-                               userLocation: locationService.currentLocation)
-                    .ignoresSafeArea(edges: [.bottom, .horizontal])
+        // No NavigationStack — the heatmap is a single full-bleed surface, and
+        // a nav bar would otherwise reserve a white strip above the safe area.
+        ZStack(alignment: .top) {
+            HeatmapMapView(viewModel: viewModel,
+                           settings: settings,
+                           userLocation: locationService.currentLocation)
+                .ignoresSafeArea()
 
-                VStack(spacing: 8) {
-                    HeatmapFilterBar(viewModel: viewModel)
-                    if indexer.isRunning {
-                        IndexingStrip(indexer: indexer)
-                    }
+            VStack(spacing: 8) {
+                HeatmapFilterBar(viewModel: viewModel)
+                if indexer.isRunning {
+                    IndexingStrip(indexer: indexer)
                 }
-                .padding(.horizontal, 12)
-                .padding(.top, 6)
             }
-            .navigationTitle("Heatmap")
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
         }
         .task {
             locationService.requestLocation()
