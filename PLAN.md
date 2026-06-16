@@ -202,10 +202,19 @@ Not built now. The key constraint: **Strava OAuth requires a `client_secret` tha
 
 ---
 
-## 5. Open questions to confirm before building
+## 5. Decisions (confirmed)
 
-1. **Units:** support miles + km for splits/PRs, or metric-only first?
-2. **Share branding:** include an app watermark/logo on exported videos?
-3. **Heatmap scope:** all activity types merged, or per-type heatmaps?
-4. **Ghost runner matching tolerance:** how strict should "same route" be (exact start/finish vs. overlapping shape)?
-5. **Strava:** is hosting a small backend acceptable later, or should we stay at Option A (manual share) indefinitely?
+1. **Units:** user-selectable Metric/Imperial, defaulting to the device locale (`Automatic`). ✅ Implemented (see Status).
+2. **Share video branding:** include a subtle app watermark on exported videos.
+3. **Heatmap scope:** one merged heatmap with an activity-type filter.
+4. **Ghost runner matching:** default to a moderate tolerance, exposed as a user-adjustable slider.
+5. **Strava:** not in scope right now (options documented in §3, Feature 6 for later).
+
+---
+
+## 6. Status
+
+- ✅ **Units foundation** (`UnitSettings.swift`: `UnitPreference`, `UnitFormatter`, `AppSettings`) + global **Settings** screen with the metric/imperial picker. All distance/elevation/speed/pace displays now route through the formatter.
+- ✅ **Feature 2 — Elevation profile chart** (`ElevationProfileView.swift`, Swift Charts): synced rule marker to playback, drag-to-seek, units-aware, toggle in the playback panel.
+- 🔧 Fixed a pre-existing compile blocker in `MetricsOverlayView.swift` (duplicated `LiveMetrics` struct + duplicate speed pill from an earlier merge).
+- ⏭️ Next: Phase 0a SwiftData store, then Features 1 (video), 4 (PRs), 5 (ghost), 4-heatmap.

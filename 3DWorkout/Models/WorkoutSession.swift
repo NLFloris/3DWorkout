@@ -22,9 +22,9 @@ struct WorkoutSession: Identifiable, Codable {
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 
-    var formattedDistance: String? {
+    func formattedDistance(_ units: UnitFormatter) -> String? {
         guard let d = totalDistance else { return nil }
-        return String(format: "%.2f km", d / 1000)
+        return units.distance(d)
     }
 
     var formattedCalories: String? {

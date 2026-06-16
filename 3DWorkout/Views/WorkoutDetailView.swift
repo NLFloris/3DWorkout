@@ -4,6 +4,7 @@ struct WorkoutDetailView: View {
     let session: WorkoutSession
     let healthKitService: HealthKitService
 
+    @EnvironmentObject var settings: AppSettings
     @StateObject private var viewModel: WorkoutDetailViewModel
     @State private var showCustomization = false
 
@@ -64,6 +65,7 @@ struct WorkoutDetailView: View {
         }
         .sheet(isPresented: $showCustomization) {
             CustomizationView(viewModel: viewModel)
+                .environmentObject(settings)
         }
         .task { await viewModel.load() }
     }

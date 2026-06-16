@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CustomizationView: View {
     @ObservedObject var viewModel: WorkoutDetailViewModel
+    @EnvironmentObject var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -77,9 +78,9 @@ struct CustomizationView: View {
                 // MARK: Stats summary
                 if let route = viewModel.route {
                     Section("Route Summary") {
-                        StatRow(label: "Total Distance", value: String(format: "%.2f km", route.totalDistance / 1000))
-                        StatRow(label: "Elevation Gain", value: "\(Int(route.elevationGain)) m")
-                        StatRow(label: "Elevation Loss", value: "\(Int(route.elevationLoss)) m")
+                        StatRow(label: "Total Distance", value: settings.units.distance(route.totalDistance))
+                        StatRow(label: "Elevation Gain", value: settings.units.elevation(route.elevationGain))
+                        StatRow(label: "Elevation Loss", value: settings.units.elevation(route.elevationLoss))
                         StatRow(label: "GPS Points", value: "\(route.points.count)")
                     }
                 }

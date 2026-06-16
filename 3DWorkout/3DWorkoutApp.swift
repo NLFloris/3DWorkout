@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct ThreeDWorkoutApp: App {
     @StateObject private var healthKitService = HealthKitService()
+    @StateObject private var settings = AppSettings.shared
 
     var body: some Scene {
         WindowGroup {
@@ -16,6 +17,7 @@ struct ThreeDWorkoutApp: App {
                         .environmentObject(healthKitService)
                 }
             }
+            .environmentObject(settings)
             .task { await healthKitService.refreshStatus() }
         }
     }
