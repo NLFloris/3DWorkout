@@ -8,6 +8,7 @@ struct WorkoutDetailView: View {
     @EnvironmentObject var settings: AppSettings
     @StateObject private var viewModel: WorkoutDetailViewModel
     @State private var showCustomization = false
+    @State private var showVideoExport = false
 
     init(session: WorkoutSession, healthKitService: HealthKitService, store: WorkoutStore) {
         self.session = session
@@ -58,6 +59,13 @@ struct WorkoutDetailView: View {
                 .disabled(viewModel.route == nil)
 
                 Button {
+                    showVideoExport = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .disabled(viewModel.route == nil)
+
+                Button {
                     showCustomization = true
                 } label: {
                     Image(systemName: "slider.horizontal.3")
@@ -67,6 +75,10 @@ struct WorkoutDetailView: View {
         }
         .sheet(isPresented: $showCustomization) {
             CustomizationView(viewModel: viewModel)
+                .environmentObject(settings)
+        }
+        .sheet(isPresented: $showVideoExport) {
+            VideoExportView(detail: viewModel, units: settings.units)
                 .environmentObject(settings)
         }
         .task { await viewModel.load() }

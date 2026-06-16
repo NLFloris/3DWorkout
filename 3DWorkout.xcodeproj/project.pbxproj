@@ -30,6 +30,9 @@
 		AA0024240000000000000024 /* ElevationProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0024240000000000000024 /* ElevationProfileView.swift */; };
 		AA0025250000000000000025 /* CachedWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0025250000000000000025 /* CachedWorkout.swift */; };
 		AA0026260000000000000026 /* WorkoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0026260000000000000026 /* WorkoutStore.swift */; };
+		AA0027270000000000000027 /* RouteVideoRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0027270000000000000027 /* RouteVideoRenderer.swift */; };
+		AA0028280000000000000028 /* VideoExportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0028280000000000000028 /* VideoExportViewModel.swift */; };
+		AA0029290000000000000029 /* VideoExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0029290000000000000029 /* VideoExportView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +62,9 @@
 		BB0024240000000000000024 /* ElevationProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfileView.swift; sourceTree = "<group>"; };
 		BB0025250000000000000025 /* CachedWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedWorkout.swift; sourceTree = "<group>"; };
 		BB0026260000000000000026 /* WorkoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutStore.swift; sourceTree = "<group>"; };
+		BB0027270000000000000027 /* RouteVideoRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteVideoRenderer.swift; sourceTree = "<group>"; };
+		BB0028280000000000000028 /* VideoExportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoExportViewModel.swift; sourceTree = "<group>"; };
+		BB0029290000000000000029 /* VideoExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoExportView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -116,6 +122,7 @@
 				BB0005050000000000000005 /* HealthKitService.swift */,
 				BB0006060000000000000006 /* RouteAnimator.swift */,
 				BB0026260000000000000026 /* WorkoutStore.swift */,
+				BB0027270000000000000027 /* RouteVideoRenderer.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -125,6 +132,7 @@
 			children = (
 				BB0007070000000000000007 /* WorkoutListViewModel.swift */,
 				BB0008080000000000000008 /* WorkoutDetailViewModel.swift */,
+				BB0028280000000000000028 /* VideoExportViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -141,6 +149,7 @@
 				BB0015150000000000000015 /* CustomizationView.swift */,
 				BB0023230000000000000023 /* SettingsView.swift */,
 				BB0024240000000000000024 /* ElevationProfileView.swift */,
+				BB0029290000000000000029 /* VideoExportView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -251,6 +260,9 @@
 				AA0024240000000000000024 /* ElevationProfileView.swift in Sources */,
 				AA0025250000000000000025 /* CachedWorkout.swift in Sources */,
 				AA0026260000000000000026 /* WorkoutStore.swift in Sources */,
+				AA0027270000000000000027 /* RouteVideoRenderer.swift in Sources */,
+				AA0028280000000000000028 /* VideoExportViewModel.swift in Sources */,
+				AA0029290000000000000029 /* VideoExportView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
