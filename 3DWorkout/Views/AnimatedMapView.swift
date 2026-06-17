@@ -19,6 +19,7 @@ struct AnimatedMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.mapView = map
+        context.coordinator.attachMarkerIfNeeded(on: map)
         context.coordinator.update(with: viewModel)
     }
 
@@ -32,11 +33,7 @@ struct AnimatedMapView: UIViewRepresentable {
         private var cancellables = Set<AnyCancellable>()
 
         // Single overlay for the whole route. The renderer paints every
-        // revealed segment in one Core Graphics pass and then paints the
-        // playback marker (white halo + red dot) immediately on top of the
-        // line — that's the only way to keep the marker above the polyline
-        // in iOS 26's MapKit, where bringSubviewToFront / zPosition on
-        // MKAnnotationView are ignored in pitched 3D mode.
+        // revealed segment in one Core Graphics pass.
         private var routeOverlay: MKPolyline?
         private weak var routeRenderer: GradientRouteRenderer?
         private var revealedSegmentIndex: Int = -1
@@ -49,7 +46,7 @@ struct AnimatedMapView: UIViewRepresentable {
         private var lastLineWidth: CGFloat?
         private var hasFramed = false
 
-        // Sub-threshold camera updates are filtered to spare MapKit a relayout.
+        // Sub-threshold camera updates are filtered.
         private var lastCameraCoord: CLLocationCoordinate2D?
         private var lastCameraHeading: CLLocationDirection = .nan
         private var lastCameraDistance: Double = .nan
@@ -58,6 +55,18 @@ struct AnimatedMapView: UIViewRepresentable {
         private let headingEpsilonDeg: Double = 0.5
         private let distanceEpsilonM: Double = 1.0
         private let pitchEpsilonDeg: Double = 0.5
+
+        // Position marker. Painted via a CALayer added directly to the
+        // MKMapView's layer hierarchy — not via the overlay renderer, not via
+        // an MKAnnotation — so it's screen-space, atomic to update, and
+        // always on top regardless of 3D pitch, tile boundaries, or MapKit's
+        // overlay layer ordering. Earlier approaches all suffered from one
+        // or more of: tile boundary "two dots" during playback (renderer),
+        // covered-by-polyline in 3D pitch (annotation), or
+        // _UIReparentingView warnings (subview).
+        private let markerLayer: CALayer = Coordinator.makeMarkerLayer()
+        private var markerAttached = false
+        private var markerCoord: CLLocationCoordinate2D?
 
         init(viewModel: WorkoutDetailViewModel) {
             self.viewModel = viewModel
@@ -69,6 +78,7 @@ struct AnimatedMapView: UIViewRepresentable {
                     guard let self, let map = self.mapView else { return }
                     self.applyRevealedPointIndex(index)
                     self.updateCamera(on: map)
+                    self.updateMarker(on: map)
                 }
                 .store(in: &cancellables)
         }
@@ -95,6 +105,13 @@ struct AnimatedMapView: UIViewRepresentable {
             }
 
             updateCamera(on: map)
+            updateMarker(on: map)
+        }
+
+        func attachMarkerIfNeeded(on map: MKMapView) {
+            guard !markerAttached else { return }
+            map.layer.addSublayer(markerLayer)
+            markerAttached = true
         }
 
         // MARK: - Overlay lifecycle
@@ -130,6 +147,8 @@ struct AnimatedMapView: UIViewRepresentable {
                 map.setRegion(route.boundingRegion, animated: false)
                 hasFramed = true
             }
+
+            updateMarker(on: map)
         }
 
         private func refreshSegmentColors() {
@@ -148,8 +167,6 @@ struct AnimatedMapView: UIViewRepresentable {
         // MARK: - Reveal progress
 
         private func applyRevealedPointIndex(_ pointIndex: Int) {
-            // Segment i connects point i → point i+1. After reaching point K
-            // segments 0…K-1 are revealed.
             let segmentCount = max(0, routeCoords.count - 1)
             let target = min(pointIndex - 1, segmentCount - 1)
             let newRevealed = max(-1, target)
@@ -157,6 +174,24 @@ struct AnimatedMapView: UIViewRepresentable {
             revealedSegmentIndex = newRevealed
             routeRenderer?.revealedSegmentIndex = newRevealed
             routeRenderer?.setNeedsDisplay()
+        }
+
+        // MARK: - Marker
+
+        /// Re-pin the screen-space marker to whatever screen pixel its
+        /// coordinate currently projects to.
+        private func updateMarker(on map: MKMapView) {
+            guard let coord = viewModel.animator.currentCoordinate,
+                  CLLocationCoordinate2DIsValid(coord) else { return }
+            markerCoord = coord
+            let screen = map.convert(coord, toPointTo: map)
+            // Disable Core Animation's implicit position tween so the marker
+            // snaps to the new spot instead of trailing the polyline head.
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            markerLayer.position = screen
+            markerLayer.isHidden = false
+            CATransaction.commit()
         }
 
         // MARK: - Camera
@@ -213,16 +248,59 @@ struct AnimatedMapView: UIViewRepresentable {
             routeRenderer = renderer
             return renderer
         }
+
+        /// Keep the marker pinned during user pan / zoom + while MapKit
+        /// animates a camera setCamera transition.
+        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+            guard markerCoord != nil else { return }
+            updateMarker(on: mapView)
+        }
+
+        // MARK: - Marker layer
+
+        private static func makeMarkerLayer() -> CALayer {
+            // Outer white halo with a drop shadow.
+            let outer = CALayer()
+            outer.frame = CGRect(x: 0, y: 0, width: 22, height: 22)
+            outer.backgroundColor = UIColor.white.cgColor
+            outer.cornerRadius = 11
+            outer.shadowColor = UIColor.black.cgColor
+            outer.shadowOpacity = 0.35
+            outer.shadowRadius = 4
+            outer.shadowOffset = .zero
+            outer.zPosition = 999_999
+            // Skip implicit animation on position changes — we drive these
+            // ourselves and don't want the dot lerping behind the polyline.
+            outer.actions = [
+                "position": NSNull(),
+                "bounds": NSNull(),
+                "frame": NSNull(),
+                "hidden": NSNull()
+            ]
+            outer.isHidden = true
+
+            // Red core.
+            let inner = CALayer()
+            inner.frame = CGRect(x: 4, y: 4, width: 14, height: 14)
+            inner.backgroundColor = UIColor.systemRed.cgColor
+            inner.cornerRadius = 7
+            inner.actions = [
+                "position": NSNull(),
+                "bounds": NSNull(),
+                "frame": NSNull()
+            ]
+            outer.addSublayer(inner)
+            return outer
+        }
     }
 }
 
 // MARK: - Gradient Route Renderer
 
-/// One overlay renderer that paints the gradient route *and* the playback dot.
-/// Painting the dot at the end of the same `draw(_:zoomScale:in:)` is the only
-/// reliable way to keep it above the polyline — in iOS 26 MapKit renders the
-/// overlay layer above the `MKAnnotationContainerView` in pitched 3D mode,
-/// which used to swallow the marker.
+/// Draws every revealed segment of the route in a single Core Graphics pass.
+/// The playback marker is now handled by a CALayer in `AnimatedMapView.Coordinator`
+/// — drawing the dot in the renderer caused per-tile duplicate-dot artifacts
+/// while the head moved across tile boundaries during playback.
 private final class GradientRouteRenderer: MKOverlayRenderer {
     var coords: [CLLocationCoordinate2D] = []
     var segmentColors: [UIColor] = []
@@ -232,28 +310,7 @@ private final class GradientRouteRenderer: MKOverlayRenderer {
     override func draw(_ mapRect: MKMapRect,
                        zoomScale: MKZoomScale,
                        in context: CGContext) {
-        guard coords.count > 1 else { return }
-
-        // 1) Polyline — revealed portion only.
-        if revealedSegmentIndex >= 0 {
-            drawRevealedSegments(mapRect: mapRect,
-                                 zoomScale: zoomScale,
-                                 context: context)
-        }
-
-        // 2) Playback dot — last thing painted, so it sits on top of the
-        //    polyline even when both occupy the same pixel in pitched 3D.
-        drawPlaybackDot(mapRect: mapRect,
-                        zoomScale: zoomScale,
-                        context: context)
-    }
-
-    private func drawRevealedSegments(mapRect: MKMapRect,
-                                      zoomScale: MKZoomScale,
-                                      context: CGContext) {
-        // MapKit's context is in map-point space; scaling the stroke by
-        // 1/zoomScale keeps the line a constant screen width regardless
-        // of zoom level.
+        guard revealedSegmentIndex >= 0, coords.count > 1 else { return }
         let strokeWidth = lineWidth / CGFloat(zoomScale)
         context.setLineCap(.round)
         context.setLineJoin(.round)
@@ -283,43 +340,5 @@ private final class GradientRouteRenderer: MKOverlayRenderer {
             context.setStrokeColor(color.cgColor)
             context.strokePath()
         }
-    }
-
-    private func drawPlaybackDot(mapRect: MKMapRect,
-                                 zoomScale: MKZoomScale,
-                                 context: CGContext) {
-        // Current playback point is the head endpoint of the last revealed
-        // segment, clamped into a valid index.
-        let headIdx = max(0, min(revealedSegmentIndex + 1, coords.count - 1))
-        let head = MKMapPoint(coords[headIdx])
-
-        // Skip if the head isn't in (or near) the tile being painted, so
-        // adjacent tiles don't end up with a stale dot.
-        let padding = 50.0 / Double(zoomScale)
-        let padded = mapRect.insetBy(dx: -padding, dy: -padding)
-        guard padded.contains(head) else { return }
-
-        let p = self.point(for: head)
-        let outerRadius: CGFloat = 11 / CGFloat(zoomScale)  // 22 pt diameter
-        let innerRadius: CGFloat = 7  / CGFloat(zoomScale)  // 14 pt diameter
-
-        // White halo with a soft drop shadow for separation from the map.
-        context.saveGState()
-        context.setShadow(offset: .zero,
-                          blur: 6 / CGFloat(zoomScale),
-                          color: UIColor.black.withAlphaComponent(0.40).cgColor)
-        context.setFillColor(UIColor.white.cgColor)
-        context.fillEllipse(in: CGRect(x: p.x - outerRadius,
-                                       y: p.y - outerRadius,
-                                       width: outerRadius * 2,
-                                       height: outerRadius * 2))
-        context.restoreGState()
-
-        // Red core.
-        context.setFillColor(UIColor.systemRed.cgColor)
-        context.fillEllipse(in: CGRect(x: p.x - innerRadius,
-                                       y: p.y - innerRadius,
-                                       width: innerRadius * 2,
-                                       height: innerRadius * 2))
     }
 }
