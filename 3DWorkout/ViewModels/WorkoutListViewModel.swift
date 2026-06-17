@@ -2,30 +2,39 @@ import Foundation
 
 @MainActor
 final class WorkoutListViewModel: ObservableObject {
-    @Published private(set) var workouts: [WorkoutSession] = []
+    @Published private(set) var workouts: [WorkoutSession] = [] {
+        didSet { recomputeDerived() }
+    }
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    // Filter state — applied lazily over the cached workouts.
-    @Published var selectedSports: Set<String> = []
+    // Filter state — drives `filteredWorkouts` + `availableSports`.
+    @Published var selectedSports: Set<String> = [] {
+        didSet { recomputeFiltered() }
+    }
     @Published var dateRange: HeatmapDateRange {
         didSet {
             settings.workoutsListDateRange = dateRange
-            // A wider range means more HK data — refetch.
+            recomputeFiltered()
+            // A wider range means more HK + SwiftData scope — refetch.
             Task { await loadWorkouts(force: true) }
         }
     }
+
+    /// Memoized derivatives. Computed once when the source state changes —
+    /// not on every SwiftUI body evaluation. With hundreds of cached
+    /// workouts, the previous computed-property approach iterated the array
+    /// every render and made the tab feel sluggish.
+    @Published private(set) var availableSports: [String] = []
+    @Published private(set) var filteredWorkouts: [WorkoutSession] = []
 
     private let healthKitService: HealthKitService
     private let store: WorkoutStore
     private let settings: AppSettings
 
-    /// Last time we successfully hit HealthKit. Re-appearing this view (e.g.
-    /// switching back from the Heatmap tab) within `refreshInterval` skips the
-    /// HK fetch — the cached data is already shown instantly from SwiftData.
+    /// Last time we successfully hit HealthKit.
     private var lastFetchAt: Date?
-    /// What `since` we used for the most recent HK fetch. Used to detect
-    /// whether the current `dateRange` requires a wider fetch.
+    /// What `since` we used for the most recent HK fetch.
     private var lastFetchSince: Date?
     private let refreshInterval: TimeInterval = 60
 
@@ -36,42 +45,29 @@ final class WorkoutListViewModel: ObservableObject {
         self.dateRange = settings.workoutsListDateRange
     }
 
-    /// Distinct workout types we have cached. Drives the sport filter menu.
-    var availableSports: [String] {
-        Array(Set(workouts.map(\.workoutType))).sorted()
-    }
-
-    /// The workouts to display after applying the active filters.
-    var filteredWorkouts: [WorkoutSession] {
-        let sportsFilter = selectedSports
-        let startDate = dateRange.startDate
-        return workouts.filter { session in
-            if !sportsFilter.isEmpty, !sportsFilter.contains(session.workoutType) {
-                return false
-            }
-            if let startDate, session.startDate < startDate { return false }
-            return true
-        }
-    }
-
     func loadWorkouts(force: Bool = false) async {
         guard !isLoading else { return }
 
-        // Show cached workouts immediately so the list never blanks out.
-        let cached = store.cachedSessions()
-        if !cached.isEmpty { workouts = cached }
-        seedSportsIfNeeded()
-
         let neededSince = dateRange.startDate
 
-        // Skip the HealthKit round-trip if we refreshed recently AND we
-        // already fetched at least as wide a range as the current filter.
+        // FIRST GUARD: if we already have data, refreshed recently, and the
+        // previous fetch covered the required window, do absolutely nothing.
+        // This must happen *before* any SwiftData fetch — otherwise we block
+        // the tab switch animation decoding the entire cache on every visit.
         if !force,
            let lastFetchAt,
            Date().timeIntervalSince(lastFetchAt) < refreshInterval,
            !workouts.isEmpty,
            isLastFetchWideEnough(for: neededSince) {
             return
+        }
+
+        // Show cached workouts immediately for fresh loads. The SwiftData
+        // predicate bounds the result set to the requested window so we
+        // don't decode years of history when the user is on "30 days".
+        if workouts.isEmpty || lastFetchSince != neededSince {
+            let cached = store.cachedSessions(since: neededSince)
+            if !cached.isEmpty { workouts = cached }
         }
 
         isLoading = true
@@ -81,29 +77,49 @@ final class WorkoutListViewModel: ObservableObject {
         do {
             let fresh = try await healthKitService.fetchWorkouts(since: neededSince)
             store.syncMetadata(fresh)
-            workouts = store.cachedSessions()
-            seedSportsIfNeeded()
+            // Re-read so we pick up newly-synced rows; still bounded by since.
+            workouts = store.cachedSessions(since: neededSince)
             lastFetchAt = Date()
             lastFetchSince = neededSince
         } catch {
-            // Keep showing cached data; only surface the error if we have nothing.
             if workouts.isEmpty { errorMessage = error.localizedDescription }
         }
     }
 
-    /// Returns true when the previous fetch already covered the required
-    /// window: a nil `lastFetchSince` means we've fetched everything; a wider
-    /// (older) `lastFetchSince` than `needed` covers the needed window.
     private func isLastFetchWideEnough(for needed: Date?) -> Bool {
-        guard let lastFetchSince else { return true }       // we have everything
-        guard let needed else { return false }              // user wants everything but we only have a window
+        // nil lastFetchSince means we previously fetched everything.
+        guard let lastFetchSince else { return true }
+        // nil needed means user wants everything but we only have a window.
+        guard let needed else { return false }
         return lastFetchSince <= needed
     }
 
-    /// On the very first load, default to "all sports selected" so the list
-    /// isn't accidentally empty before the user has touched the filter.
+    // MARK: - Derived state
+
+    private func recomputeDerived() {
+        recomputeAvailableSports()
+        recomputeFiltered()
+        seedSportsIfNeeded()
+    }
+
+    private func recomputeAvailableSports() {
+        availableSports = Array(Set(workouts.map(\.workoutType))).sorted()
+    }
+
+    private func recomputeFiltered() {
+        let sportsFilter = selectedSports
+        let startDate = dateRange.startDate
+        filteredWorkouts = workouts.filter { session in
+            if !sportsFilter.isEmpty, !sportsFilter.contains(session.workoutType) {
+                return false
+            }
+            if let startDate, session.startDate < startDate { return false }
+            return true
+        }
+    }
+
     private func seedSportsIfNeeded() {
-        if selectedSports.isEmpty {
+        if selectedSports.isEmpty, !availableSports.isEmpty {
             selectedSports = Set(availableSports)
         }
     }

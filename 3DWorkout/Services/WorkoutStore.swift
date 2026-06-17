@@ -32,11 +32,21 @@ final class WorkoutStore: ObservableObject {
 
     // MARK: - Metadata
 
-    /// Cached workouts as metadata-only sessions, newest first.
-    func cachedSessions() -> [WorkoutSession] {
-        let descriptor = FetchDescriptor<CachedWorkout>(
-            sortBy: [SortDescriptor(\.startDate, order: .reverse)]
-        )
+    /// Cached workouts as metadata-only sessions, newest first. Pass `since`
+    /// to bound the fetch — the user is on a 30-day filter by default and we
+    /// shouldn't decode their entire history into structs on every tab switch.
+    func cachedSessions(since: Date? = nil) -> [WorkoutSession] {
+        let descriptor: FetchDescriptor<CachedWorkout>
+        if let since {
+            descriptor = FetchDescriptor<CachedWorkout>(
+                predicate: #Predicate { $0.startDate >= since },
+                sortBy: [SortDescriptor(\.startDate, order: .reverse)]
+            )
+        } else {
+            descriptor = FetchDescriptor<CachedWorkout>(
+                sortBy: [SortDescriptor(\.startDate, order: .reverse)]
+            )
+        }
         let cached = (try? context.fetch(descriptor)) ?? []
         return cached.map(\.asSession)
     }
