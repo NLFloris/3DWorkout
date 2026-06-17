@@ -3,16 +3,16 @@ import SwiftUI
 struct WorkoutListView: View {
     @EnvironmentObject var healthKitService: HealthKitService
     @EnvironmentObject var settings: AppSettings
-    @StateObject private var viewModel: WorkoutListViewModel
+    /// Owned by `MainTabView` so the viewmodel survives across tab switches
+    /// and is pre-warmed during launch — see `MainTabView.task`.
+    @ObservedObject var viewModel: WorkoutListViewModel
     private let store: WorkoutStore
 
-    init(healthKitService: HealthKitService, store: WorkoutStore, settings: AppSettings) {
+    init(viewModel: WorkoutListViewModel,
+         healthKitService: HealthKitService,
+         store: WorkoutStore) {
+        self.viewModel = viewModel
         self.store = store
-        _viewModel = StateObject(wrappedValue: WorkoutListViewModel(
-            healthKitService: healthKitService,
-            store: store,
-            settings: settings
-        ))
     }
 
     @State private var refreshTrigger: Int = 0
