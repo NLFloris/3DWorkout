@@ -1,5 +1,13 @@
 import Foundation
 
+/// One ISO-week's worth of workouts for the sectioned Workouts list.
+struct WeeklyBucket: Identifiable {
+    var id: Date { weekStart }
+    let weekStart: Date
+    let label: String
+    let workouts: [WorkoutSession]
+}
+
 @MainActor
 final class WorkoutListViewModel: ObservableObject {
     @Published private(set) var workouts: [WorkoutSession] = [] {
@@ -27,6 +35,9 @@ final class WorkoutListViewModel: ObservableObject {
     /// every render and made the tab feel sluggish.
     @Published private(set) var availableSports: [String] = []
     @Published private(set) var filteredWorkouts: [WorkoutSession] = []
+    /// `filteredWorkouts` grouped by ISO week, newest week first, used by the
+    /// list to render section headers ("This week", "Last week", date label).
+    @Published private(set) var weeklyBuckets: [WeeklyBucket] = []
 
     private let healthKitService: HealthKitService
     private let store: WorkoutStore
@@ -116,7 +127,50 @@ final class WorkoutListViewModel: ObservableObject {
             if let startDate, session.startDate < startDate { return false }
             return true
         }
+        recomputeWeeklyBuckets()
     }
+
+    /// Bucket `filteredWorkouts` into ISO-week groups, newest week first.
+    /// Each bucket carries a relative label ("This week", "Last week") for
+    /// the two most recent buckets, otherwise the week's start date.
+    private func recomputeWeeklyBuckets() {
+        var cal = Calendar(identifier: .iso8601)
+        cal.timeZone = .current
+        let now = Date()
+        let thisWeekStart = cal.dateInterval(of: .weekOfYear, for: now)?.start
+
+        var grouped: [Date: [WorkoutSession]] = [:]
+        for session in filteredWorkouts {
+            guard let weekStart = cal.dateInterval(of: .weekOfYear, for: session.startDate)?.start
+            else { continue }
+            grouped[weekStart, default: []].append(session)
+        }
+
+        weeklyBuckets = grouped
+            .sorted { $0.key > $1.key }
+            .map { (start, sessions) -> WeeklyBucket in
+                let label: String
+                if let thisWeekStart {
+                    let weeksAgo = cal.dateComponents([.weekOfYear],
+                                                     from: start,
+                                                     to: thisWeekStart).weekOfYear ?? 0
+                    switch weeksAgo {
+                    case 0: label = "This week"
+                    case 1: label = "Last week"
+                    default: label = Self.weekHeaderFormatter.string(from: start)
+                    }
+                } else {
+                    label = Self.weekHeaderFormatter.string(from: start)
+                }
+                return WeeklyBucket(weekStart: start, label: label, workouts: sessions)
+            }
+    }
+
+    private static let weekHeaderFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f
+    }()
 
     private func seedSportsIfNeeded() {
         if selectedSports.isEmpty, !availableSports.isEmpty {

@@ -7,52 +7,78 @@ import MapKit
 struct HeatmapTabView: View {
     @EnvironmentObject var healthKitService: HealthKitService
     @EnvironmentObject var settings: AppSettings
-    @StateObject private var viewModel: HeatmapViewModel
-    @StateObject private var indexer: HeatmapIndexer
+    /// Owned by `MainTabView` so both survive across tab switches and are
+    /// pre-warmed before the user first taps this tab.
+    @ObservedObject var viewModel: HeatmapViewModel
+    @ObservedObject var indexer: HeatmapIndexer
     @StateObject private var locationService = LocationService()
+    let store: WorkoutStore
 
-    init(store: WorkoutStore, healthKit: HealthKitService, settings: AppSettings) {
-        _viewModel = StateObject(wrappedValue: HeatmapViewModel(
-            store: store, settings: settings
-        ))
-        _indexer = StateObject(
-            wrappedValue: HeatmapIndexer(healthKit: healthKit, store: store)
-        )
+    init(viewModel: HeatmapViewModel,
+         indexer: HeatmapIndexer,
+         store: WorkoutStore,
+         settings: AppSettings) {
+        self.viewModel = viewModel
+        self.indexer = indexer
+        self.store = store
     }
 
     @State private var showExport = false
+    /// We hold the tapped workout's UUID rather than the session itself —
+    /// `navigationDestination(item:)` requires `Hashable`, which
+    /// `WorkoutSession` isn't because of its nested route/metrics.
+    @State private var tappedSessionID: UUID?
 
     var body: some View {
-        // No NavigationStack — the heatmap is a single full-bleed surface, and
-        // a nav bar would otherwise reserve a white strip above the safe area.
-        ZStack(alignment: .top) {
-            HeatmapMapView(viewModel: viewModel,
-                           settings: settings,
-                           userLocation: locationService.currentLocation)
-                .ignoresSafeArea()
+        // A NavigationStack lets us push the tapped workout into detail. The
+        // nav bar is hidden on the heatmap surface itself (so the map stays
+        // full-bleed), and shown normally on pushed destinations.
+        NavigationStack {
+            ZStack(alignment: .top) {
+                HeatmapMapView(viewModel: viewModel,
+                               settings: settings,
+                               userLocation: locationService.currentLocation,
+                               onTrackTap: { uuid in tappedSessionID = uuid })
+                    .ignoresSafeArea()
 
-            VStack(spacing: 8) {
-                HStack(alignment: .top, spacing: 8) {
-                    HeatmapFilterBar(viewModel: viewModel)
-                    Spacer(minLength: 0)
-                    Button {
-                        showExport = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(.ultraThinMaterial, in: Capsule())
+                VStack(spacing: 8) {
+                    HStack(alignment: .top, spacing: 8) {
+                        HeatmapFilterBar(viewModel: viewModel)
+                        Spacer(minLength: 0)
+                        Button {
+                            showExport = true
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(.ultraThinMaterial, in: Capsule())
+                        }
+                        .accessibilityLabel("Export heatmap")
+                        .disabled(viewModel.tracks.isEmpty)
                     }
-                    .accessibilityLabel("Export heatmap")
-                    .disabled(viewModel.tracks.isEmpty)
+                    if indexer.isRunning {
+                        IndexingStrip(indexer: indexer)
+                    }
                 }
-                if indexer.isRunning {
-                    IndexingStrip(indexer: indexer)
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $tappedSessionID) { uuid in
+                if let session = store.cachedSession(for: uuid) {
+                    WorkoutDetailView(session: session,
+                                      healthKitService: healthKitService,
+                                      store: store,
+                                      settings: settings)
+                } else {
+                    ContentUnavailableView(
+                        "Workout not found",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text("This workout is no longer in the local cache.")
+                    )
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 6)
         }
         .sheet(isPresented: $showExport) {
             HeatmapExportView(viewModel: viewModel)

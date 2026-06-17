@@ -2,24 +2,36 @@ import SwiftUI
 
 /// Root tab container shown once HealthKit access is granted.
 ///
-/// Owns `WorkoutListViewModel` as a `@StateObject` and pre-warms it via
-/// `.task` so the first tap on the Workouts tab is instant — by the time the
-/// user reaches it, the cached SwiftData fetch + HealthKit refresh have
-/// already happened in the background while the launch splash was playing.
+/// Owns both `WorkoutListViewModel` and `HeatmapViewModel` (+ `HeatmapIndexer`)
+/// as `@StateObject`s and pre-warms them via `.task` so the first tap on
+/// either tab is instant — by the time the user reaches them, the SwiftData
+/// fetches, HealthKit refresh, and the heatmap indexing pass have already
+/// kicked off in the background while the launch splash was playing.
 struct MainTabView: View {
     let healthKitService: HealthKitService
     let store: WorkoutStore
     @EnvironmentObject var settings: AppSettings
 
     @StateObject private var workoutsViewModel: WorkoutListViewModel
+    @StateObject private var heatmapViewModel: HeatmapViewModel
+    @StateObject private var heatmapIndexer: HeatmapIndexer
 
     init(healthKitService: HealthKitService, store: WorkoutStore) {
         self.healthKitService = healthKitService
         self.store = store
+        let appSettings = AppSettings.shared
         _workoutsViewModel = StateObject(wrappedValue: WorkoutListViewModel(
             healthKitService: healthKitService,
             store: store,
-            settings: AppSettings.shared
+            settings: appSettings
+        ))
+        _heatmapViewModel = StateObject(wrappedValue: HeatmapViewModel(
+            store: store,
+            settings: appSettings
+        ))
+        _heatmapIndexer = StateObject(wrappedValue: HeatmapIndexer(
+            healthKit: healthKitService,
+            store: store
         ))
     }
 
@@ -32,8 +44,9 @@ struct MainTabView: View {
                     Label("Workouts", systemImage: "figure.run")
                 }
 
-            HeatmapTabView(store: store,
-                           healthKit: healthKitService,
+            HeatmapTabView(viewModel: heatmapViewModel,
+                           indexer: heatmapIndexer,
+                           store: store,
                            settings: settings)
                 .tabItem {
                     Label("Heatmap", systemImage: "flame.fill")
@@ -45,10 +58,13 @@ struct MainTabView: View {
                 }
         }
         .task {
-            // Pre-warm the workouts list while the splash is still on screen
-            // so the first tab tap doesn't pay for the SwiftData fetch + HK
-            // round-trip. The viewmodel's internal guards make this idempotent.
+            // Pre-warm both tabs while the splash is still on screen so their
+            // first tap doesn't pay for SwiftData fetches, HK round-trips, or
+            // the heatmap indexing pass.
             await workoutsViewModel.loadWorkouts()
+            heatmapIndexer.startIfNeeded()
+            heatmapViewModel.refreshAvailableSports()
+            heatmapViewModel.reaggregate()
         }
     }
 }

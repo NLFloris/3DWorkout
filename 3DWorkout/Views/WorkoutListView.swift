@@ -61,28 +61,52 @@ struct WorkoutListView: View {
 
     private var workoutList: some View {
         ScrollView {
-            LazyVStack(spacing: 10) {
+            LazyVStack(spacing: 10, pinnedViews: [.sectionHeaders]) {
                 summaryHeader
                 WorkoutFilterBar(viewModel: viewModel)
                 if viewModel.filteredWorkouts.isEmpty {
                     filteredEmptyHint
                 } else {
-                    ForEach(viewModel.filteredWorkouts) { session in
-                        NavigationLink {
-                            WorkoutDetailView(session: session,
-                                              healthKitService: healthKitService,
-                                              store: store,
-                                              settings: settings)
-                        } label: {
-                            WorkoutCard(session: session)
+                    ForEach(viewModel.weeklyBuckets) { bucket in
+                        Section {
+                            ForEach(bucket.workouts) { session in
+                                NavigationLink {
+                                    WorkoutDetailView(session: session,
+                                                      healthKitService: healthKitService,
+                                                      store: store,
+                                                      settings: settings)
+                                } label: {
+                                    WorkoutCard(session: session)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        } header: {
+                            weekHeader(bucket.label)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
+        .background(Color(.systemGroupedBackground))
+        .refreshable {
+            // Native pull-to-refresh — always forces a HK round-trip, the
+            // user's explicit pull is a strong signal they want fresh data.
+            await viewModel.loadWorkouts(force: true)
+        }
+    }
+
+    private func weekHeader(_ label: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
         .background(Color(.systemGroupedBackground))
     }
 

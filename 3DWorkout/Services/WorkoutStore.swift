@@ -32,6 +32,13 @@ final class WorkoutStore: ObservableObject {
 
     // MARK: - Metadata
 
+    /// Lookup a single cached session by its HealthKit UUID. Used by the
+    /// Heatmap tap-to-open-workout flow to find the workout behind a tapped
+    /// polyline without paying the cost of decoding the whole cache.
+    func cachedSession(for uuid: UUID) -> WorkoutSession? {
+        return model(for: uuid)?.asSession
+    }
+
     /// Cached workouts as metadata-only sessions, newest first. Pass `since`
     /// to bound the fetch — the user is on a 30-day filter by default and we
     /// shouldn't decode their entire history into structs on every tab switch.
