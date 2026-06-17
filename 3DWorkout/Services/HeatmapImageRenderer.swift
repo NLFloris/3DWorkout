@@ -119,32 +119,22 @@ final class HeatmapImageRenderer {
         cg.setLineCap(.round)
         cg.setLineJoin(.round)
         cg.setLineWidth(max(2.0, CGFloat(input.lineWidth)))
-        let gapMeters = 200.0   // skip GPS-dropout straight lines
 
+        // Tracks come from CachedHeatmapTrack which is already
+        // Douglas-Peucker simplified by HeatmapIndexer — long straight
+        // sections collapse to a few long segments. A gap filter here would
+        // tear those into "holes", so we draw the polyline straight through
+        // and trust the indexer to have rejected dropouts upstream.
         for track in input.tracks where track.coordinates.count >= 2 {
             cg.setStrokeColor(
                 HeatmapStyle.uiColor(for: track.sportType, alpha: input.lineAlpha).cgColor
             )
             cg.beginPath()
-            var started = false
-            for i in 0..<(track.coordinates.count - 1) {
-                let c0 = track.coordinates[i]
-                let c1 = track.coordinates[i + 1]
-                if metersBetween(c0, c1) > gapMeters {
-                    // Break the path so we don't draw a long "shortcut" line
-                    // across a GPS dropout.
-                    if started { cg.strokePath() }
-                    cg.beginPath()
-                    started = false
-                    continue
-                }
-                if !started {
-                    cg.move(to: snapshot.point(for: c0))
-                    started = true
-                }
-                cg.addLine(to: snapshot.point(for: c1))
+            cg.move(to: snapshot.point(for: track.coordinates[0]))
+            for i in 1..<track.coordinates.count {
+                cg.addLine(to: snapshot.point(for: track.coordinates[i]))
             }
-            if started { cg.strokePath() }
+            cg.strokePath()
         }
     }
 
@@ -310,13 +300,4 @@ final class HeatmapImageRenderer {
         return "\(m)m"
     }
 
-    private func metersBetween(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
-        let lat1 = a.latitude * .pi / 180
-        let lat2 = b.latitude * .pi / 180
-        let dLat = lat2 - lat1
-        let dLon = (b.longitude - a.longitude) * .pi / 180
-        let h = sin(dLat / 2) * sin(dLat / 2)
-            + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
-        return 2 * 6_371_000 * atan2(sqrt(h), sqrt(1 - h))
-    }
 }

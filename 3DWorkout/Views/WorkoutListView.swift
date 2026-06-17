@@ -34,7 +34,7 @@ struct WorkoutListView: View {
                     } else {
                         Button {
                             refreshTrigger &+= 1
-                            Task { await viewModel.loadWorkouts() }
+                            Task { await viewModel.loadWorkouts(force: true) }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                                 .fontWeight(.semibold)
@@ -112,7 +112,12 @@ struct WorkoutListView: View {
             )
         }
         .padding(.vertical, 12)
-        .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5)
+        )
         .shadow(color: .black.opacity(0.05), radius: 8, y: 2)
         .padding(.top, 4)
     }
@@ -193,7 +198,12 @@ private struct WorkoutCard: View {
             }
             .padding(.vertical, 12)
         }
-        .background(.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5)
+        )
         .shadow(color: .black.opacity(0.06), radius: 10, y: 3)
     }
 
@@ -283,8 +293,8 @@ private struct WorkoutFilterBar: View {
         .font(.subheadline.weight(.semibold))
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(.background, in: Capsule())
-        .overlay(Capsule().strokeBorder(.secondary.opacity(0.18), lineWidth: 0.5))
+        .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+        .overlay(Capsule().strokeBorder(Color(.separator).opacity(0.6), lineWidth: 0.5))
     }
 
     private func toggle(_ sport: String) {

@@ -13,6 +13,12 @@ final class WorkoutListViewModel: ObservableObject {
     private let healthKitService: HealthKitService
     private let store: WorkoutStore
 
+    /// Last time we successfully hit HealthKit. Re-appearing this view (e.g.
+    /// switching back from the Heatmap tab) within `refreshInterval` skips the
+    /// HK fetch — the cached data is already shown instantly from SwiftData.
+    private var lastFetchAt: Date?
+    private let refreshInterval: TimeInterval = 60
+
     init(healthKitService: HealthKitService, store: WorkoutStore) {
         self.healthKitService = healthKitService
         self.store = store
@@ -36,23 +42,34 @@ final class WorkoutListViewModel: ObservableObject {
         }
     }
 
-    func loadWorkouts() async {
+    func loadWorkouts(force: Bool = false) async {
         guard !isLoading else { return }
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
 
-        // Show cached workouts immediately for an instant launch.
+        // Show cached workouts immediately so the list never blanks out.
         let cached = store.cachedSessions()
         if !cached.isEmpty { workouts = cached }
         seedSportsIfNeeded()
 
-        // Refresh from HealthKit and update the cache.
+        // Skip the HealthKit round-trip if we refreshed recently — re-entering
+        // this tab from elsewhere would otherwise stall on a HK query that
+        // can't have new results yet.
+        if !force,
+           let lastFetchAt,
+           Date().timeIntervalSince(lastFetchAt) < refreshInterval,
+           !workouts.isEmpty {
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
         do {
             let fresh = try await healthKitService.fetchWorkouts()
             store.syncMetadata(fresh)
             workouts = store.cachedSessions()
             seedSportsIfNeeded()
+            lastFetchAt = Date()
         } catch {
             // Keep showing cached data; only surface the error if we have nothing.
             if workouts.isEmpty { errorMessage = error.localizedDescription }
