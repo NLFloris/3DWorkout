@@ -145,6 +145,15 @@ final class AppSettings: ObservableObject {
         didSet { d.set(defaultRouteColorHex, forKey: K.wvRouteColorHex) }
     }
 
+    // MARK: - Workouts list defaults
+
+    /// Determines how far back HealthKit is queried on cold launch — fetching
+    /// "All time" out of HK can take seconds for long-time users, so the
+    /// default is "30 days" and the user has to opt into more.
+    @Published var workoutsListDateRange: HeatmapDateRange {
+        didSet { d.set(workoutsListDateRange.rawValue, forKey: K.wlDateRange) }
+    }
+
     // MARK: - Heatmap defaults
 
     @Published var heatmapDateRange: HeatmapDateRange {
@@ -172,6 +181,7 @@ final class AppSettings: ObservableObject {
         static let wvLineWidth        = "wv.lineWidth"
         static let wvAnimationSpeed   = "wv.animationSpeed"
         static let wvRouteColorHex    = "wv.routeColorHex"
+        static let wlDateRange        = "wl.dateRange"
         static let hmDateRange        = "hm.dateRange"
         static let hmSelectedSports   = "hm.selectedSports"
         static let hmLineAlpha        = "hm.lineAlpha"
@@ -192,6 +202,10 @@ final class AppSettings: ObservableObject {
         defaultLineWidth = (d.object(forKey: K.wvLineWidth) as? Double) ?? 4.0
         defaultAnimationSpeed = (d.object(forKey: K.wvAnimationSpeed) as? Double) ?? 4.0
         defaultRouteColorHex = d.string(forKey: K.wvRouteColorHex) ?? "#0A84FF"
+
+        // Workouts list
+        let wlRaw = d.string(forKey: K.wlDateRange)
+        workoutsListDateRange = wlRaw.flatMap(HeatmapDateRange.init(rawValue:)) ?? .lastMonth
 
         // Heatmap
         let hmRaw = d.string(forKey: K.hmDateRange)

@@ -6,9 +6,13 @@ struct WorkoutListView: View {
     @StateObject private var viewModel: WorkoutListViewModel
     private let store: WorkoutStore
 
-    init(healthKitService: HealthKitService, store: WorkoutStore) {
+    init(healthKitService: HealthKitService, store: WorkoutStore, settings: AppSettings) {
         self.store = store
-        _viewModel = StateObject(wrappedValue: WorkoutListViewModel(healthKitService: healthKitService, store: store))
+        _viewModel = StateObject(wrappedValue: WorkoutListViewModel(
+            healthKitService: healthKitService,
+            store: store,
+            settings: settings
+        ))
     }
 
     @State private var refreshTrigger: Int = 0

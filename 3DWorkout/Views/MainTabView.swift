@@ -8,7 +8,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            WorkoutListView(healthKitService: healthKitService, store: store)
+            WorkoutListView(healthKitService: healthKitService, store: store, settings: settings)
                 .tabItem {
                     Label("Workouts", systemImage: "figure.run")
                 }

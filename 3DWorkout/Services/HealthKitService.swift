@@ -64,15 +64,26 @@ final class HealthKitService: ObservableObject {
 
     // MARK: - Workouts
 
-    func fetchWorkouts() async throws -> [WorkoutSession] {
+    /// Fetches matching workouts. Pass `since` to limit the query to workouts
+    /// that *started* on or after that date — defaults to "all time" when nil.
+    /// A 30-day cap on cold launch makes the boot path 10–30× faster than
+    /// pulling the user's full history.
+    func fetchWorkouts(since: Date? = nil) async throws -> [WorkoutSession] {
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
-        let predicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
+        let typePredicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
             HKQuery.predicateForWorkouts(with: .running),
             HKQuery.predicateForWorkouts(with: .cycling),
             HKQuery.predicateForWorkouts(with: .walking),
             HKQuery.predicateForWorkouts(with: .hiking),
             HKQuery.predicateForWorkouts(with: .swimming),
         ])
+        let predicate: NSPredicate = {
+            guard let since else { return typePredicate }
+            let dateP = HKQuery.predicateForSamples(withStart: since,
+                                                    end: nil,
+                                                    options: .strictStartDate)
+            return NSCompoundPredicate(andPredicateWithSubpredicates: [typePredicate, dateP])
+        }()
 
         let hkWorkouts: [HKWorkout] = try await withCheckedThrowingContinuation { cont in
             let q = HKSampleQuery(
