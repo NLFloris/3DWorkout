@@ -22,6 +22,12 @@ final class VideoExportViewModel: ObservableObject {
     init(detail: WorkoutDetailViewModel, units: UnitFormatter) {
         self.detail = detail
         self.units = units
+        // Seed export config with the workout's current display settings so
+        // "render" with no edits matches what the user is watching.
+        config.mapStyle = detail.mapStyle
+        config.is3DMode = detail.is3DMode
+        config.pitch = detail.pitch
+        config.cameraDistance = detail.cameraDistance
     }
 
     var canExport: Bool { detail.route != nil }
@@ -35,9 +41,9 @@ final class VideoExportViewModel: ObservableObject {
             route: route,
             segmentColors: detail.computedSegmentColors,
             metrics: detail.metrics,
-            mapType: detail.mapStyle.mkMapType,
-            pitch: detail.is3DMode ? detail.pitch : 0,
-            cameraDistance: detail.cameraDistance,
+            mapType: config.mapStyle.mkMapType,
+            pitch: config.is3DMode ? config.pitch : 0,
+            cameraDistance: config.cameraDistance,
             lineWidth: detail.lineWidth,
             usesPace: detail.session.usesPace,
             units: units,

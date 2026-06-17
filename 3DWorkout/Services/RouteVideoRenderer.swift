@@ -28,9 +28,18 @@ struct VideoExportConfig {
 
     var aspect: Aspect = .vertical
     var duration: Double = 6        // seconds
-    var fps: Int = 30
+    var fps: Int = 24               // 24 fps renders ~20% faster than 30 with no perceptible loss
     var showStats: Bool = true
     var showWatermark: Bool = true
+
+    // Override the workout's display settings just for the export. These
+    // default to the workout's current values when the sheet opens, but the
+    // user can tweak them independently (e.g. 3D camera over standard map
+    // even if the live view is hybrid-flat).
+    var mapStyle: MapDisplayStyle = .hybrid
+    var is3DMode: Bool = true
+    var pitch: Double = 60
+    var cameraDistance: Double = 400
 }
 
 /// Renders an animated flyover of a route to an MP4. Each frame is produced
@@ -115,21 +124,89 @@ final class RouteVideoRenderer {
         guard writer.startWriting() else { throw RenderError.writerFailed(writer.error?.localizedDescription) }
         writer.startSession(atSourceTime: .zero)
 
+        // Pre-compute the per-frame camera sequentially because the heading
+        // smoothing is stateful (depends on the previous frame's heading).
         smoothedHeading = initialHeading(data)
-
+        struct FramePlan { let coord: CLLocationCoordinate2D; let heading: Double; let revealed: Int }
+        var plans: [FramePlan] = []
+        plans.reserveCapacity(frameCount)
         for i in 0..<frameCount {
             let t = Double(i) / Double(frameCount - 1)
             let headIndex = min(Int(t * Double(data.count - 1)), data.count - 1)
-            let center = data.coords[headIndex]
             let heading = updatedHeading(data, at: headIndex)
+            plans.append(FramePlan(coord: data.coords[headIndex],
+                                   heading: heading,
+                                   revealed: headIndex))
+        }
 
-            let snapshot = try await makeSnapshot(center: center, heading: heading, size: size, input: input)
-            let frame = composite(snapshot: snapshot, data: data, revealed: headIndex, input: input, size: size)
+        // Snapshots account for almost all of the render time. Fan them out
+        // across a TaskGroup with a small concurrency cap so we get a 4-6×
+        // speed-up without overloading the GPU / RAM with too many in-flight
+        // MKMapSnapshotter instances. We collect them into an in-order array,
+        // then composite + write sequentially (composite + writer aren't the
+        // bottleneck so it's not worth interleaving them).
+        let mapType = input.mapType
+        let cameraDistance = input.cameraDistance
+        let pitch = input.pitch
+
+        let snapshotsConcurrency = 6
+        var snapshots: [MKMapSnapshotter.Snapshot?] = Array(repeating: nil, count: frameCount)
+        try await withThrowingTaskGroup(of: (Int, MKMapSnapshotter.Snapshot).self) { group in
+            var queued = 0
+            var completed = 0
+            // Prime the pipeline.
+            while queued < min(snapshotsConcurrency, frameCount) {
+                let i = queued
+                let plan = plans[i]
+                group.addTask {
+                    let snap = try await Self.makeSnapshot(
+                        center: plan.coord,
+                        heading: plan.heading,
+                        mapType: mapType,
+                        pitch: pitch,
+                        cameraDistance: cameraDistance,
+                        size: size
+                    )
+                    return (i, snap)
+                }
+                queued += 1
+            }
+            while let result = try await group.next() {
+                snapshots[result.0] = result.1
+                completed += 1
+                // First half of the progress bar is the snapshot pass.
+                progress(0.5 * Double(completed) / Double(frameCount))
+                if queued < frameCount {
+                    let i = queued
+                    let plan = plans[i]
+                    group.addTask {
+                        let snap = try await Self.makeSnapshot(
+                            center: plan.coord,
+                            heading: plan.heading,
+                            mapType: mapType,
+                            pitch: pitch,
+                            cameraDistance: cameraDistance,
+                            size: size
+                        )
+                        return (i, snap)
+                    }
+                    queued += 1
+                }
+            }
+        }
+
+        // Composite + write sequentially in frame order.
+        for i in 0..<frameCount {
+            guard let snapshot = snapshots[i] else { throw RenderError.snapshotFailed }
+            let frame = composite(snapshot: snapshot,
+                                  data: data,
+                                  revealed: plans[i].revealed,
+                                  input: input,
+                                  size: size)
             guard let buffer = pixelBuffer(from: frame, size: size) else { throw RenderError.bufferFailed }
-
             while !writerInput.isReadyForMoreMediaData { await Task.yield() }
             adaptor.append(buffer, withPresentationTime: CMTime(value: Int64(i), timescale: fps))
-            progress(Double(i + 1) / Double(frameCount))
+            progress(0.5 + 0.5 * Double(i + 1) / Double(frameCount))
         }
 
         writerInput.markAsFinished()
@@ -209,22 +286,32 @@ final class RouteVideoRenderer {
 
     // MARK: - Snapshotting
 
-    private func makeSnapshot(center: CLLocationCoordinate2D, heading: Double,
-                              size: CGSize, input: Input) async throws -> MKMapSnapshotter.Snapshot {
+    /// `nonisolated static` so the concurrent `TaskGroup` calls truly run in
+    /// parallel rather than serializing back onto the renderer's MainActor.
+    /// All parameters are value types and `MKMapSnapshotter` is safe to drive
+    /// off the main thread.
+    nonisolated private static func makeSnapshot(
+        center: CLLocationCoordinate2D,
+        heading: Double,
+        mapType: MKMapType,
+        pitch: Double,
+        cameraDistance: Double,
+        size: CGSize
+    ) async throws -> MKMapSnapshotter.Snapshot {
         let options = MKMapSnapshotter.Options()
         options.size = size
         options.scale = 1   // 1 pt == 1 px so point(for:) maps directly to output pixels
         // MKMapSnapshotter doesn't support the flyover map types; fall back to
         // their static equivalents so a "Flyover" style still renders.
-        switch input.mapType {
+        switch mapType {
         case .satelliteFlyover: options.mapType = .satellite
         case .hybridFlyover:    options.mapType = .hybrid
-        default:                options.mapType = input.mapType
+        default:                options.mapType = mapType
         }
         options.camera = MKMapCamera(
             lookingAtCenter: center,
-            fromDistance: input.cameraDistance,
-            pitch: CGFloat(input.pitch),
+            fromDistance: cameraDistance,
+            pitch: CGFloat(pitch),
             heading: heading
         )
         options.showsBuildings = true

@@ -49,6 +49,43 @@ struct VideoExportView: View {
                         .font(.caption)
                 }
                 Slider(value: $model.config.duration, in: 3...15, step: 1)
+
+                Picker("Frame rate", selection: $model.config.fps) {
+                    Text("24 fps").tag(24)
+                    Text("30 fps").tag(30)
+                    Text("60 fps").tag(60)
+                }
+            }
+
+            Section("Camera") {
+                Picker("Map style", selection: $model.config.mapStyle) {
+                    ForEach(MapDisplayStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                Toggle("3D camera", isOn: $model.config.is3DMode)
+                if model.config.is3DMode {
+                    VStack(alignment: .leading) {
+                        HStack {
+                            Text("Pitch")
+                            Spacer()
+                            Text("\(Int(model.config.pitch))°")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        Slider(value: $model.config.pitch, in: 0...80, step: 1)
+                    }
+                }
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Camera distance")
+                        Spacer()
+                        Text("\(Int(model.config.cameraDistance)) m")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $model.config.cameraDistance, in: 100...2000, step: 50)
+                }
             }
 
             Section("Overlay") {
