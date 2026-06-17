@@ -9,6 +9,7 @@ struct WorkoutDetailView: View {
     @StateObject private var viewModel: WorkoutDetailViewModel
     @State private var showCustomization = false
     @State private var showVideoExport = false
+    @State private var showStats = false
 
     init(session: WorkoutSession,
          healthKitService: HealthKitService,
@@ -67,6 +68,13 @@ struct WorkoutDetailView: View {
                 .disabled(viewModel.route == nil)
 
                 Button {
+                    showStats = true
+                } label: {
+                    Image(systemName: "chart.bar.xaxis")
+                }
+                .disabled(viewModel.route == nil && viewModel.metrics?.heartRateSamples.isEmpty != false)
+
+                Button {
                     showVideoExport = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
@@ -87,6 +95,12 @@ struct WorkoutDetailView: View {
         }
         .sheet(isPresented: $showVideoExport) {
             VideoExportView(detail: viewModel, units: settings.units)
+                .environmentObject(settings)
+        }
+        .sheet(isPresented: $showStats) {
+            WorkoutStatsSheet(session: session,
+                              route: viewModel.route,
+                              metrics: viewModel.metrics)
                 .environmentObject(settings)
         }
         .task { await viewModel.load() }

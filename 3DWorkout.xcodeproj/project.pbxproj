@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		70150D0D2FE294AF004E4D74 /* SplitsTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70150D0C2FE294AF004E4D74 /* SplitsTableView.swift */; };
+		70150D0F2FE294E6004E4D74 /* HeartRateZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70150D0E2FE294E6004E4D74 /* HeartRateZoneView.swift */; };
+		70150D112FE294FA004E4D74 /* WorkoutStatsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70150D102FE294FA004E4D74 /* WorkoutStatsSheet.swift */; };
 		70CF42162FE17DB300CF8F48 /* CachedHeatmapTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CF42152FE17DB300CF8F48 /* CachedHeatmapTrack.swift */; };
 		70CF42182FE17DF500CF8F48 /* HeatmapIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CF42172FE17DF500CF8F48 /* HeatmapIndexer.swift */; };
 		70CF421A2FE17E0300CF8F48 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CF42192FE17E0300CF8F48 /* LocationService.swift */; };
@@ -48,6 +51,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		70150D0C2FE294AF004E4D74 /* SplitsTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitsTableView.swift; sourceTree = "<group>"; };
+		70150D0E2FE294E6004E4D74 /* HeartRateZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartRateZoneView.swift; sourceTree = "<group>"; };
+		70150D102FE294FA004E4D74 /* WorkoutStatsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutStatsSheet.swift; sourceTree = "<group>"; };
 		70CF42152FE17DB300CF8F48 /* CachedHeatmapTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedHeatmapTrack.swift; sourceTree = "<group>"; };
 		70CF42172FE17DF500CF8F48 /* HeatmapIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapIndexer.swift; sourceTree = "<group>"; };
 		70CF42192FE17E0300CF8F48 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
@@ -186,6 +192,9 @@
 				70CF42212FE17EE400CF8F48 /* MainTabView.swift */,
 				70CF42252FE18A5700CF8F48 /* SplashView.swift */,
 				70CF422B2FE19C9500CF8F48 /* HeatmapExportView.swift */,
+				70150D0C2FE294AF004E4D74 /* SplitsTableView.swift */,
+				70150D0E2FE294E6004E4D74 /* HeartRateZoneView.swift */,
+				70150D102FE294FA004E4D74 /* WorkoutStatsSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -277,6 +286,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				70150D112FE294FA004E4D74 /* WorkoutStatsSheet.swift in Sources */,
 				AA0001010000000000000001 /* 3DWorkoutApp.swift in Sources */,
 				AA0002020000000000000002 /* WorkoutSession.swift in Sources */,
 				AA0003030000000000000003 /* WorkoutRoute.swift in Sources */,
@@ -287,8 +297,10 @@
 				AA0005050000000000000005 /* HealthKitService.swift in Sources */,
 				AA0006060000000000000006 /* RouteAnimator.swift in Sources */,
 				70CF421E2FE17E5400CF8F48 /* HeatmapMapView.swift in Sources */,
+				70150D0D2FE294AF004E4D74 /* SplitsTableView.swift in Sources */,
 				AA0007070000000000000007 /* WorkoutListViewModel.swift in Sources */,
 				AA0008080000000000000008 /* WorkoutDetailViewModel.swift in Sources */,
+				70150D0F2FE294E6004E4D74 /* HeartRateZoneView.swift in Sources */,
 				AA0009090000000000000009 /* PermissionsView.swift in Sources */,
 				AA0010100000000000000010 /* WorkoutListView.swift in Sources */,
 				AA0011110000000000000011 /* WorkoutDetailView.swift in Sources */,

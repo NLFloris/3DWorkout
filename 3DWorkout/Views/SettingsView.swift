@@ -7,10 +7,29 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 measurementSection
+                athleteSection
                 workoutViewSection
                 heatmapSection
             }
             .navigationTitle("Settings")
+        }
+    }
+
+    private var athleteSection: some View {
+        Section {
+            Stepper(value: $settings.maxHeartRate, in: 100...220, step: 1) {
+                HStack {
+                    Text("Max heart rate")
+                    Spacer()
+                    Text("\(Int(settings.maxHeartRate)) bpm")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+        } header: {
+            Text("Athlete profile")
+        } footer: {
+            Text("Used to split your heart-rate samples into the five standard training zones on the workout detail. A common estimate is 220 minus your age.")
         }
     }
 

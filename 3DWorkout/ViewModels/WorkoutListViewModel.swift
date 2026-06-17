@@ -28,6 +28,10 @@ final class WorkoutListViewModel: ObservableObject {
             Task { await loadWorkouts(force: true) }
         }
     }
+    /// Free-text search over workout type + start-date string.
+    @Published var searchText: String = "" {
+        didSet { recomputeFiltered() }
+    }
 
     /// Memoized derivatives. Computed once when the source state changes —
     /// not on every SwiftUI body evaluation. With hundreds of cached
@@ -120,11 +124,23 @@ final class WorkoutListViewModel: ObservableObject {
     private func recomputeFiltered() {
         let sportsFilter = selectedSports
         let startDate = dateRange.startDate
+        let query = searchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
         filteredWorkouts = workouts.filter { session in
             if !sportsFilter.isEmpty, !sportsFilter.contains(session.workoutType) {
                 return false
             }
             if let startDate, session.startDate < startDate { return false }
+            if !query.isEmpty {
+                let dateStr = session.startDate
+                    .formatted(date: .abbreviated, time: .omitted)
+                    .lowercased()
+                if !session.workoutType.lowercased().contains(query),
+                   !dateStr.contains(query) {
+                    return false
+                }
+            }
             return true
         }
         recomputeWeeklyBuckets()

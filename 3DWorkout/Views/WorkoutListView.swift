@@ -55,13 +55,16 @@ struct WorkoutListView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "")
             }
+            .searchable(text: $viewModel.searchText, prompt: "Sport or date")
         }
         .task { await viewModel.loadWorkouts() }
     }
 
     private var workoutList: some View {
         ScrollView {
-            LazyVStack(spacing: 10, pinnedViews: [.sectionHeaders]) {
+            // Headers scroll *with* their content — pinned headers look
+            // floating-island weird when the surrounding cards fade.
+            LazyVStack(spacing: 10) {
                 summaryHeader
                 WorkoutFilterBar(viewModel: viewModel)
                 if viewModel.filteredWorkouts.isEmpty {

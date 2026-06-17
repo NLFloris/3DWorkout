@@ -61,6 +61,9 @@ final class HeatmapViewModel: ObservableObject {
         didSet {
             settings.heatmapDateRange = dateRange
             reaggregate()
+            // If the user picks a wider range than the cache covers, ask the
+            // host to widen the HK fetch. The closure is set by MainTabView.
+            onDateRangeWidened?(dateRange)
         }
     }
     @Published var selectedSports: Set<String> {
@@ -69,6 +72,10 @@ final class HeatmapViewModel: ObservableObject {
             reaggregate()
         }
     }
+
+    /// Called when the user picks a date range — `MainTabView` hooks this
+    /// up so the Workouts viewmodel's HK fetch widens to match.
+    var onDateRangeWidened: ((HeatmapDateRange) -> Void)?
 
     @Published private(set) var tracks: [HeatmapTrack] = []
     @Published private(set) var availableSports: [String] = []
@@ -86,9 +93,10 @@ final class HeatmapViewModel: ObservableObject {
         self.settings = settings
         self.dateRange = settings.heatmapDateRange
         self.selectedSports = settings.heatmapSelectedSports
-        refreshAvailableSports()
-        if selectedSports.isEmpty { selectedSports = Set(availableSports) }
-        reaggregate()
+        // No SwiftData hits in init — those run on the main thread and were
+        // blocking the launch splash from rendering its first frame.
+        // `MainTabView.task` calls refreshAvailableSports + reaggregate
+        // once SwiftUI has had a chance to put the splash on screen.
     }
 
     func refreshAvailableSports() {

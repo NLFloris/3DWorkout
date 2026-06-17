@@ -145,6 +145,15 @@ final class AppSettings: ObservableObject {
         didSet { d.set(defaultRouteColorHex, forKey: K.wvRouteColorHex) }
     }
 
+    // MARK: - Athlete profile
+
+    /// Estimated maximum heart rate, used to bucket HR samples into the five
+    /// standard zones on the Workout detail view. Default 190 — most users
+    /// override this in Settings.
+    @Published var maxHeartRate: Double {
+        didSet { d.set(maxHeartRate, forKey: K.maxHeartRate) }
+    }
+
     // MARK: - Workouts list defaults
 
     /// Determines how far back HealthKit is queried on cold launch — fetching
@@ -181,6 +190,7 @@ final class AppSettings: ObservableObject {
         static let wvLineWidth        = "wv.lineWidth"
         static let wvAnimationSpeed   = "wv.animationSpeed"
         static let wvRouteColorHex    = "wv.routeColorHex"
+        static let maxHeartRate       = "athlete.maxHR"
         static let wlDateRange        = "wl.dateRange"
         static let hmDateRange        = "hm.dateRange"
         static let hmSelectedSports   = "hm.selectedSports"
@@ -202,6 +212,9 @@ final class AppSettings: ObservableObject {
         defaultLineWidth = (d.object(forKey: K.wvLineWidth) as? Double) ?? 4.0
         defaultAnimationSpeed = (d.object(forKey: K.wvAnimationSpeed) as? Double) ?? 4.0
         defaultRouteColorHex = d.string(forKey: K.wvRouteColorHex) ?? "#0A84FF"
+
+        // Athlete
+        maxHeartRate = (d.object(forKey: K.maxHeartRate) as? Double) ?? 190
 
         // Workouts list
         let wlRaw = d.string(forKey: K.wlDateRange)
