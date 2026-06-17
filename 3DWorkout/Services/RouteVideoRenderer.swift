@@ -253,10 +253,13 @@ final class RouteVideoRenderer {
             snapshot.image.draw(in: CGRect(origin: .zero, size: size))
 
             // Revealed route polyline. GPS gaps (signal loss, tunnels, paused
-            // recording) can leave neighbouring samples hundreds of meters
-            // apart; drawing a straight line between them produces the long
-            // off-axis bands the user reported. Skip any segment whose
-            // straight-line distance exceeds a generous gap threshold.
+            // recording) leave downsampled neighbours hundreds of meters
+            // apart; drawing a straight line between them produced the long
+            // off-axis bands. The intermediate gap filter still catches
+            // those, but we *always* draw the segment that ends at the head
+            // — otherwise the polyline finishes a long way from the marker
+            // and you see two distinct dots (polyline cap + marker) at
+            // opposite ends of an invisible last segment.
             cg.setLineCap(.round)
             cg.setLineJoin(.round)
             cg.setLineWidth(max(3, input.lineWidth * 1.6))
@@ -264,7 +267,9 @@ final class RouteVideoRenderer {
             for j in 0..<revealed {
                 let c0 = data.coords[j]
                 let c1 = data.coords[j + 1]
-                if metersBetween(c0, c1) > gapThresholdMeters { continue }
+                let isHeadSegment = (j == revealed - 1)
+                if !isHeadSegment,
+                   metersBetween(c0, c1) > gapThresholdMeters { continue }
                 let p0 = snapshot.point(for: c0)
                 let p1 = snapshot.point(for: c1)
                 cg.setStrokeColor(data.colors[min(j, data.colors.count - 1)])
@@ -274,7 +279,8 @@ final class RouteVideoRenderer {
                 cg.strokePath()
             }
 
-            // Current position marker.
+            // Current position marker — painted after every segment so it
+            // sits on top of the polyline cap.
             let head = snapshot.point(for: data.coords[revealed])
             drawMarker(cg, at: head)
 
